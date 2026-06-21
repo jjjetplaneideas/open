@@ -1,0 +1,190 @@
+{
+  "app_name": "FishCast",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "A premium, trustworthy, and rugged outdoor utility that guides serious anglers with crisp data and earthy warmth.",
+  "color": {
+    "surface": "#FBFBF9",
+    "onSurface": "#1C1D1C",
+    "surfaceSecondary": "#FFFFFF",
+    "onSurfaceSecondary": "#1C1D1C",
+    "surfaceTertiary": "#EAE9E4",
+    "onSurfaceTertiary": "#40423F",
+    "surfaceInverse": "#2B2D2B",
+    "onSurfaceInverse": "#FBFBF9",
+    "brand": "#425E4A",
+    "brandPrimary": "#425E4A",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#C96E4C",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#D9E0D9",
+    "onBrandTertiary": "#2E4234",
+    "success": "#3C6146",
+    "onSuccess": "#FFFFFF",
+    "warning": "#D18E42",
+    "onWarning": "#1C1D1C",
+    "error": "#B3473E",
+    "onError": "#FFFFFF",
+    "info": "#4A5459",
+    "onInfo": "#FFFFFF",
+    "border": "#E1E0DA",
+    "borderStrong": "#BDBBBA",
+    "divider": "#EBEAE5",
+    "dark": {
+      "surface": "#1C1D1C",
+      "onSurface": "#F3F3F0",
+      "surfaceSecondary": "#252726",
+      "onSurfaceSecondary": "#F3F3F0",
+      "surfaceTertiary": "#313331",
+      "onSurfaceTertiary": "#D2D3D0",
+      "surfaceInverse": "#F3F3F0",
+      "onSurfaceInverse": "#1C1D1C",
+      "brand": "#587E63",
+      "brandPrimary": "#587E63",
+      "onBrandPrimary": "#FFFFFF",
+      "brandSecondary": "#D98A6C",
+      "onBrandSecondary": "#1C1D1C",
+      "brandTertiary": "#2F4034",
+      "onBrandTertiary": "#A4C4AF",
+      "success": "#4A7A57",
+      "onSuccess": "#FFFFFF",
+      "warning": "#E0A865",
+      "onWarning": "#1C1D1C",
+      "error": "#CF5D54",
+      "onError": "#FFFFFF",
+      "info": "#67757C",
+      "onInfo": "#FFFFFF",
+      "border": "#353736",
+      "borderStrong": "#4F5250",
+      "divider": "#2C2E2D"
+    }
+  },
+  "typography": {
+    "displayFontFamily": "Plus Jakarta Sans",
+    "textFontFamily": "Plus Jakarta Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous iOS-native padding. Group related data tightly, but leave plenty of breathing room between sections for outdoor legibility.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": 1,
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Use on the bottom tab bar when content scrolls behind.",
+      "Use as a frosted overlay on the Today screen's hero background.",
+      "Use on floating action buttons (Log Catch) paired with a brandTertiary tint."
+    ],
+    "dont's": [
+      "Do not use on regular data cards or forecast lists.",
+      "Do not use over dense text sections."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Today",
+      "purpose": "A dashboard presenting the fishing score, critical weather elements, and a barometric pressure trend to determine if today is a good day to fish.",
+      "states": {
+        "loading": "Centered spinner matching brandPrimary.",
+        "empty": "N/A - Weather data is always present, if location fails show 'Enable Location'.",
+        "error": "Readable message ('Unable to fetch conditions') with a Retry button."
+      },
+      "layout": "Header: Location name (left), Spots and Settings icons (right). Main Hero: Large featured card with a 'golden hour water' background image overlaid with a glassmorphism panel. The panel houses a prominent Fishing Score (circular gauge or large typography) and verdict (Excellent/Fair/Poor). Below hero: A 2-column grid of modular cards for Barometric Pressure (showing rising/falling arrow), Wind/Temp, and Solunar Periods. Bottom: A full-width 'AI Almanac' card offering local tips."
+    },
+    {
+      "name": "Forecast",
+      "purpose": "7-day outlook to help anglers plan their next trip.",
+      "states": {
+        "loading": "Centered spinner.",
+        "empty": "No forecast data available.",
+        "error": "Failed to load forecast data."
+      },
+      "layout": "Vertical list of cards. Each row contains the Date, a color-coded Fishing Score badge (Moss for Good, Terracotta for Poor), High/Low temps, and a brief condition summary. Tapping a day expands to show a horizontal hourly scroll of activity levels."
+    },
+    {
+      "name": "Fish",
+      "purpose": "A catalog of seasonal fish species currently available in the local area.",
+      "states": {
+        "loading": "Skeleton fish cards.",
+        "empty": "Illustration of a fishing rod with 'No local species data'.",
+        "error": "Failed to load species data."
+      },
+      "layout": "Multi-column grid (2-col). Each card contains a real transparent PNG of the fish on a surfaceSecondary background, Species Name, and tags for Best Time (Dawn/Dusk). High visual appeal to motivate the angler."
+    },
+    {
+      "name": "Log",
+      "purpose": "Personal catch journal to record photos, species, size, and conditions.",
+      "states": {
+        "loading": "Centered spinner.",
+        "empty": "Silhouette of a fisherman with 'Your catch journal is empty. Log your first catch!'.",
+        "error": "Unable to load journal."
+      },
+      "layout": "Vertical feed of stacked cards. Each card acts as a memory: full-width catch photo on top, protected by a dark gradient scrim at the bottom where the species name and weight are overlaid in white. Below the photo, a compact row detailing the location and weather conditions at the time of catch. A sticky FAB (glassmorphism) floats at the bottom right to 'Add Catch'."
+    }
+  ],
+  "haptics": {
+    "events": {
+      "tab_press": "light",
+      "button_primary_press": "medium",
+      "list_item_expand": "light",
+      "log_catch_success": "success"
+    }
+  },
+  "images": {
+    "hero_background": {
+      "url": "https://images.pexels.com/photos/35826250/pexels-photo-35826250.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "dark": "https://images.pexels.com/photos/35641046/pexels-photo-35641046.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Rippling water surface reflecting golden hour hues"
+    },
+    "fish_largemouth_bass": {
+      "url": "https://images.pexels.com/photos/4376190/pexels-photo-4376190.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Largemouth bass held by an angler"
+    },
+    "empty_state_fisherman": {
+      "url": "https://images.unsplash.com/photo-1593974595229-2fe505c273b5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwxfHxmaXNoZXJtYW4lMjBvdXRkb29yJTIwc2lsaG91ZXR0ZXxlbnwwfHx8fDE3ODIwODQzMTl8MA&ixlib=rb-4.1.0&q=85",
+      "dark": "https://images.unsplash.com/photo-1593974595229-2fe505c273b5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwxfHxmaXNoZXJtYW4lMjBvdXRkb29yJTIwc2lsaG91ZXR0ZXxlbnwwfHx8fDE3ODIwODQzMTl8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Silhouette of a fisherman at sunset"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Adhere strictly to the '1 iOS-Native Clean' personality guidelines. Generous padding, crisp typography, and 44x44pt minimum touch targets are crucial for an outdoor utility app where sunlight glare and movement are factors.",
+    "Implement the nuclear ban on all shades of blue. Use the provided Moss Green (brand) and Terracotta (brandSecondary) palette. For informational tags, use Slate Grey (info).",
+    "On the Today screen, the hero image ('hero_background') MUST have a glassmorphism frosted panel or a deep gradient scrim (vertical, transparent to >= 70% surfaceInverse) if text is placed directly over it. This guarantees high contrast readability.",
+    "Ensure the Barometric Pressure card highlights the trend (Rising, Falling, Stable) using an icon or visual indicator, as this is the most critical feature for anglers.",
+    "For the 'Log' screen, implement a sticky FAB (glassmorphism over brandTertiary tint) for 'Add Catch', avoiding bottom safe area collision.",
+    "Wire haptics to all primary button presses and tab changes using expo-haptics.",
+    "Do NOT use emojis anywhere in the system UI. Use the Phosphor icon set."
+  ]
+}
