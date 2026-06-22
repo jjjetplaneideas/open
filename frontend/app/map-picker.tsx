@@ -1,17 +1,17 @@
 /**
- * Interactive map pin picker (WebView + Leaflet + OpenStreetMap tiles).
- * Works on iOS, Android, and Web — no API keys required.
+ * Interactive map pin picker.
+ * - Native: react-native-webview + Leaflet + OpenStreetMap (via MapWebView.tsx)
+ * - Web:    direct <iframe srcDoc=...> + Leaflet (via MapWebView.web.tsx)
+ * No API keys required.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { WebView } from "react-native-webview";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -20,6 +20,7 @@ import * as Haptics from "expo-haptics";
 
 import { api, getSavedLocation, setSavedLocation } from "@/src/api";
 import { COLORS, RADIUS, SPACING, TYPE } from "@/src/theme";
+import MapWebView from "@/src/components/MapWebView";
 
 function buildHtml(lat: number, lon: number): string {
   return `<!DOCTYPE html>
@@ -59,16 +60,25 @@ function buildHtml(lat: number, lon: number): string {
     attribution: '© OpenStreetMap'
   }).addTo(map);
 
+  function send(msg) {
+    var payload = JSON.stringify(msg);
+    if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+      window.ReactNativeWebView.postMessage(payload);
+    } else if (window.parent && window.parent !== window) {
+      window.parent.postMessage(payload, '*');
+    }
+  }
+
   function postCenter() {
     var c = map.getCenter();
-    var msg = JSON.stringify({ type: 'center', lat: c.lat, lon: c.lng });
-    if (window.ReactNativeWebView) {
-      window.ReactNativeWebView.postMessage(msg);
-    }
+    send({ type: 'center', lat: c.lat, lon: c.lng });
   }
   map.on('move', postCenter);
   map.on('moveend', postCenter);
-  setTimeout(postCenter, 100);
+  // Force tile reflow once layout is stable
+  setTimeout(function () { map.invalidateSize(); postCenter(); }, 250);
+  setTimeout(function () { map.invalidateSize(); }, 1000);
+  window.addEventListener('resize', function () { map.invalidateSize(); });
 </script>
 </body></html>`;
 }
@@ -76,7 +86,6 @@ function buildHtml(lat: number, lon: number): string {
 export default function MapPickerScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ lat?: string; lon?: string }>();
-  const webRef = useRef<WebView>(null);
 
   const [center, setCenter] = useState<{ lat: number; lon: number }>({
     lat: params.lat ? parseFloat(String(params.lat)) : 37.7749,
@@ -101,17 +110,6 @@ export default function MapPickerScreen() {
       }
     })();
   }, [params.lat, params.lon]);
-
-  const onMessage = (e: any) => {
-    try {
-      const data = JSON.parse(e.nativeEvent.data);
-      if (data.type === "center") {
-        setCenter({ lat: data.lat, lon: data.lon });
-      }
-    } catch {
-      /* ignore */
-    }
-  };
 
   const useGps = async () => {
     const perm = await Location.requestForegroundPermissionsAsync();
@@ -159,22 +157,19 @@ export default function MapPickerScreen() {
       </View>
 
       <View style={styles.mapWrap}>
-        <WebView
-          testID="map-webview"
-          ref={webRef}
-          source={Platform.select({
-            web: { uri: `data:text/html;charset=utf-8,${encodeURIComponent(html)}` },
-            default: { html, baseUrl: "https://localhost" },
-          }) as any}
-          originWhitelist={["*"]}
-          onMessage={onMessage}
-          onLoadEnd={() => setReady(true)}
+        <MapWebView
+          html={html}
+          onMessage={(data) => {
+            if (data?.type === "center") {
+              setCenter({ lat: data.lat, lon: data.lon });
+              if (!ready) setReady(true);
+            }
+          }}
+          onReady={() => setReady(true)}
           style={{ flex: 1, backgroundColor: COLORS.surfaceInverse }}
-          javaScriptEnabled
-          domStorageEnabled
         />
         {!ready && (
-          <View style={styles.loading}>
+          <View style={styles.loading} pointerEvents="none">
             <ActivityIndicator color={COLORS.brand} />
           </View>
         )}
