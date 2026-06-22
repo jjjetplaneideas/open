@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -53,19 +54,55 @@ export default function LocationScreen() {
     setGpsLoading(true);
     setError("");
     try {
-      const perm = await Location.requestForegroundPermissionsAsync();
-      if (perm.status !== "granted") {
-        setError("Location permission denied. Try manual entry below.");
+      // Permissions
+      const perm = await Location.getForegroundPermissionsAsync();
+      let status = perm.status;
+      let canAsk = perm.canAskAgain;
+      if (status !== "granted") {
+        if (!canAsk) {
+          setError("Location is blocked. Open Settings to enable, or enter a place below.");
+          setGpsLoading(false);
+          return;
+        }
+        const req = await Location.requestForegroundPermissionsAsync();
+        status = req.status;
+        canAsk = req.canAskAgain;
+        if (status !== "granted") {
+          if (!canAsk) {
+            setError("Location was denied. Tap below to open Settings, or enter a place.");
+          } else {
+            setError("Permission needed to use GPS. Try again or enter a place below.");
+          }
+          setGpsLoading(false);
+          return;
+        }
+      }
+
+      // Get position with a hard timeout + last-known fallback
+      const positionPromise = Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const timeoutPromise = new Promise<null>((resolve) =>
+        setTimeout(() => resolve(null), 8000),
+      );
+      let pos: Location.LocationObject | null =
+        (await Promise.race([positionPromise, timeoutPromise])) as any;
+
+      if (!pos) {
+        // Fallback: try last known position
+        pos = await Location.getLastKnownPositionAsync({ maxAge: 10 * 60 * 1000 });
+      }
+      if (!pos) {
+        setError("Could not get GPS signal. Try moving outdoors or enter a place below.");
         setGpsLoading(false);
         return;
       }
-      const pos = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
+
       const display = await api
         .reverseGeocode(pos.coords.latitude, pos.coords.longitude)
         .then((r) => r.display)
-        .catch(() => `${pos.coords.latitude.toFixed(3)}, ${pos.coords.longitude.toFixed(3)}`);
+        .catch(() => `${pos!.coords.latitude.toFixed(3)}, ${pos!.coords.longitude.toFixed(3)}`);
+
       await setSavedLocation({
         lat: pos.coords.latitude,
         lon: pos.coords.longitude,
@@ -73,13 +110,19 @@ export default function LocationScreen() {
         source: "gps",
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace("/(tabs)");
+      }
     } catch (e: any) {
-      setError(e?.message || "Could not get GPS location");
+      setError(e?.message || "Could not get GPS location. Try entering a place below.");
     } finally {
       setGpsLoading(false);
     }
   };
+
+  const openSettings = () => Linking.openSettings();
 
   const pickResult = async (r: any) => {
     await setSavedLocation({
@@ -172,7 +215,17 @@ export default function LocationScreen() {
             </Pressable>
           </View>
 
-          {error ? <Text style={styles.errText}>{error}</Text> : null}
+          {error ? (
+            <View style={styles.errBox}>
+              <Text style={styles.errText}>{error}</Text>
+              {error.toLowerCase().includes("settings") || error.toLowerCase().includes("blocked") || error.toLowerCase().includes("denied") ? (
+                <Pressable testID="open-settings-button" style={styles.errBtn} onPress={openSettings}>
+                  <Ionicons name="settings-outline" size={14} color={COLORS.brand} />
+                  <Text style={styles.errBtnText}>Open Settings</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
         </View>
 
         <FlatList
@@ -258,6 +311,25 @@ const styles = StyleSheet.create({
   },
   searchBtnText: { color: COLORS.onBrandPrimary, fontWeight: "700", fontSize: TYPE.sm },
   errText: { color: COLORS.error, fontSize: TYPE.sm },
+  errBox: {
+    backgroundColor: "#FBEAE7",
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    gap: SPACING.sm,
+  },
+  errBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: COLORS.brand,
+  },
+  errBtnText: { color: COLORS.brand, fontWeight: "700", fontSize: TYPE.sm },
   resultRow: {
     flexDirection: "row",
     alignItems: "center",

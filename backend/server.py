@@ -498,6 +498,57 @@ async def geocode(query: str = Query(..., min_length=2)):
 
 @api_router.get("/reverse-geocode")
 async def reverse_geocode(lat: float, lon: float):
+    """Reverse geocode lat/lon to a granular community/neighborhood label.
+
+    Strategy:
+      1) Try Nominatim (OpenStreetMap) — returns village/suburb/neighbourhood
+         level detail (e.g. "Treasure Island" instead of "Tampa Bay").
+      2) Fall back to Open-Meteo geocoding (broader admin labels).
+      3) Final fallback: raw coordinates.
+    """
+    # 1) Nominatim — needs a real User-Agent per their usage policy.
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as hc:
+            r = await hc.get(
+                "https://nominatim.openstreetmap.org/reverse",
+                params={
+                    "lat": lat, "lon": lon, "format": "jsonv2",
+                    "zoom": 14, "addressdetails": 1,
+                },
+                headers={"User-Agent": "FishCast/1.0 (fishing-forecast-app)"},
+            )
+            if r.status_code == 200:
+                data = r.json()
+                addr = data.get("address", {}) or {}
+                # Prefer the most specific community name available
+                community = (
+                    addr.get("neighbourhood")
+                    or addr.get("hamlet")
+                    or addr.get("village")
+                    or addr.get("suburb")
+                    or addr.get("town")
+                    or addr.get("city_district")
+                    or addr.get("city")
+                    or addr.get("county")
+                )
+                region = addr.get("state") or addr.get("region") or addr.get("province")
+                country = addr.get("country_code", "").upper() if addr.get("country_code") else addr.get("country")
+                if community:
+                    parts = [community]
+                    if region:
+                        parts.append(region)
+                    if country and country not in (community, region):
+                        parts.append(country)
+                    return {
+                        "name": community,
+                        "admin1": region,
+                        "country": country,
+                        "display": ", ".join(parts),
+                    }
+    except Exception as e:
+        logging.warning(f"nominatim failed: {e}")
+
+    # 2) Open-Meteo fallback
     try:
         async with httpx.AsyncClient(timeout=10.0) as hc:
             r = await hc.get(REVERSE_BASE, params={"latitude": lat, "longitude": lon, "language": "en", "format": "json"})
@@ -513,8 +564,10 @@ async def reverse_geocode(lat: float, lon: float):
                         "display": ", ".join(filter(None, [it.get("name"), it.get("admin1"), it.get("country")])),
                     }
     except Exception as e:
-        logging.warning(f"reverse geocode failed: {e}")
-    return {"name": None, "display": f"{round(lat,3)}, {round(lon,3)}"}
+        logging.warning(f"open-meteo reverse failed: {e}")
+
+    # 3) Final fallback
+    return {"name": None, "display": f"{round(lat, 3)}, {round(lon, 3)}"}
 
 
 @api_router.get("/forecast")

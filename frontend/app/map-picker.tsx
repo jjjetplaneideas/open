@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -112,11 +113,32 @@ export default function MapPickerScreen() {
   }, [params.lat, params.lon]);
 
   const useGps = async () => {
-    const perm = await Location.requestForegroundPermissionsAsync();
-    if (perm.status !== "granted") return;
-    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    setInitial({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-    setCenter({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+    try {
+      const perm = await Location.getForegroundPermissionsAsync();
+      let status = perm.status;
+      let canAsk = perm.canAskAgain;
+      if (status !== "granted") {
+        if (!canAsk) {
+          Linking.openSettings();
+          return;
+        }
+        const req = await Location.requestForegroundPermissionsAsync();
+        status = req.status;
+        if (status !== "granted") return;
+      }
+      const positionPromise = Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000));
+      let pos: Location.LocationObject | null =
+        (await Promise.race([positionPromise, timeoutPromise])) as any;
+      if (!pos) pos = await Location.getLastKnownPositionAsync({ maxAge: 10 * 60 * 1000 });
+      if (!pos) return;
+      setInitial({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+      setCenter({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+    } catch {
+      /* ignore */
+    }
   };
 
   const confirm = async () => {
