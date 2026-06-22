@@ -24,17 +24,11 @@ def test_forecast_contributors_safety_confidence_coastal():
     contribs = ts.get("contributors")
     assert isinstance(contribs, list) and len(contribs) >= 5
     keys_seen = set()
-    has_positive = False
-    has_negative = False
     for c in contribs:
         for k in ("key", "label", "delta", "note"):
             assert k in c, f"contributor missing {k}: {c}"
         assert isinstance(c["delta"], int)
         keys_seen.add(c["key"])
-        if c["delta"] > 0:
-            has_positive = True
-        if c["delta"] < 0:
-            has_negative = True
     # coastal -> should include tide & solunar in contributors
     assert "tide" in keys_seen
     assert "solunar" in keys_seen
