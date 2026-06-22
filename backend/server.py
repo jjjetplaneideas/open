@@ -10,6 +10,7 @@ from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
 import httpx
+import math
 import asyncio
 
 import ephem  # type: ignore
@@ -229,8 +230,159 @@ def compute_fishing_score(
     pressure_hpa: float, pressure_trend: str, wind_kmh: float, temp_c: float,
     cloud_pct: float, precip_mm: float, solunar_score: int = 50,
     tide_movement: Optional[float] = None,
+    tide_direction: Optional[str] = None,
     swell_height_m: Optional[float] = None,
 ) -> Dict[str, Any]:
+    """Returns a 0-100 fishing score plus a labeled list of positive/negative
+    contributors anglers can read at a glance.
+    """
+    factors: Dict[str, Dict[str, Any]] = {}
+
+    if 1008 <= pressure_hpa <= 1020:
+        p_score, p_note = 90, "Ideal pressure window"
+    elif 1003 <= pressure_hpa < 1008 or 1020 < pressure_hpa <= 1025:
+        p_score, p_note = 70, "Acceptable pressure"
+    else:
+        p_score, p_note = 45, "Pressure outside ideal range"
+    factors["pressure"] = {"score": p_score, "note": p_note}
+
+    if pressure_trend == "falling":
+        t_score, t_note = 95, "Falling pressure — fish feeding actively"
+    elif pressure_trend == "stable":
+        t_score, t_note = 75, "Stable pressure — steady bite"
+    else:
+        t_score, t_note = 50, "Rising pressure — fish less active"
+    factors["pressure_trend"] = {"score": t_score, "note": t_note}
+
+    if 5 <= wind_kmh <= 20:
+        w_score, w_note = 90, "Light chop — perfect"
+    elif wind_kmh < 5:
+        w_score, w_note = 65, "Too calm"
+    elif wind_kmh <= 30:
+        w_score, w_note = 60, "Breezy — be cautious"
+    else:
+        w_score, w_note = 30, "Strong winds — unsafe"
+    factors["wind"] = {"score": w_score, "note": w_note}
+
+    if 40 <= cloud_pct <= 80:
+        c_score, c_note = 85, "Overcast — fish less spooked"
+    elif cloud_pct < 40:
+        c_score, c_note = 65, "Clear skies"
+    else:
+        c_score, c_note = 75, "Heavy clouds"
+    factors["clouds"] = {"score": c_score, "note": c_note}
+
+    if 15 <= temp_c <= 25:
+        temp_score, temp_note = 85, "Comfortable water temps"
+    elif 8 <= temp_c < 15 or 25 < temp_c <= 30:
+        temp_score, temp_note = 70, "Acceptable temperature"
+    else:
+        temp_score, temp_note = 50, "Extreme temperature"
+    factors["temperature"] = {"score": temp_score, "note": temp_note}
+
+    if precip_mm == 0:
+        precip_score, precip_note = 80, "Dry conditions"
+    elif precip_mm <= 2.5:
+        precip_score, precip_note = 75, "Light rain — often great"
+    elif precip_mm <= 7.5:
+        precip_score, precip_note = 55, "Steady rain"
+    else:
+        precip_score, precip_note = 35, "Heavy downpour"
+    factors["precipitation"] = {"score": precip_score, "note": precip_note}
+
+    factors["solunar"] = {
+        "score": solunar_score,
+        "note": (
+            "Major moon window soon — peak feeding" if solunar_score >= 80
+            else "Solid solunar phase" if solunar_score >= 60
+            else "Weak solunar period"
+        ),
+    }
+
+    weights = {
+        "pressure_trend": 0.24, "pressure": 0.14, "wind": 0.14,
+        "clouds": 0.10, "temperature": 0.10, "precipitation": 0.08,
+        "solunar": 0.20,
+    }
+
+    if tide_movement is not None:
+        if 0.15 <= tide_movement <= 0.7:
+            tide_score, tide_note = 90, f"Strong {tide_direction or ''} tide — fish on the feed".strip()
+        elif tide_movement < 0.05:
+            tide_score, tide_note = 45, "Slack tide — slow bite"
+        else:
+            tide_score, tide_note = 70, f"Moderate {tide_direction or ''} tide".strip()
+        factors["tide"] = {"score": tide_score, "note": tide_note}
+        weights = {
+            "pressure_trend": 0.20, "pressure": 0.12, "wind": 0.12,
+            "clouds": 0.08, "temperature": 0.08, "precipitation": 0.06,
+            "solunar": 0.16, "tide": 0.18,
+        }
+
+    if swell_height_m is not None and swell_height_m > 0:
+        if swell_height_m <= 1.2:
+            sw_score, sw_note = 85, "Fishable swell"
+        elif swell_height_m <= 2.0:
+            sw_score, sw_note = 60, "Big swell — pick sheltered spots"
+        else:
+            sw_score, sw_note = 35, "Dangerous swell — stay onshore"
+        factors["swell"] = {"score": sw_score, "note": sw_note}
+
+    # Normalize total
+    used = {k: factors[k]["score"] for k in factors if k in weights}
+    w_sum = sum(weights[k] for k in used)
+    total = round(sum(used[k] * weights[k] for k in used) / w_sum) if w_sum else 0
+
+    # Build contributor list (signed points relative to baseline 60)
+    pretty = {
+        "pressure_trend": {
+            "rising": "Rising Pressure", "falling": "Falling Pressure",
+            "stable": "Stable Pressure",
+        },
+        "pressure": "Barometric Pressure",
+        "wind": "Wind",
+        "clouds": "Cloud Cover",
+        "temperature": "Temperature",
+        "precipitation": "Precipitation",
+        "solunar": "Solunar Window",
+        "tide": "Tide",
+        "swell": "Swell",
+    }
+    contributors: List[Dict[str, Any]] = []
+    baseline = 60.0
+    for k in factors:
+        if k not in weights:
+            continue
+        label = (
+            pretty["pressure_trend"].get(pressure_trend, "Pressure Trend")
+            if k == "pressure_trend"
+            else pretty.get(k, k)
+        )
+        delta = round((factors[k]["score"] - baseline) * weights[k])
+        contributors.append({
+            "key": k,
+            "label": label,
+            "delta": delta,
+            "note": factors[k]["note"],
+        })
+    contributors.sort(key=lambda c: c["delta"], reverse=True)
+
+    if total >= 80:
+        verdict, blurb = "Excellent", "Drop everything and grab your rod."
+    elif total >= 65:
+        verdict, blurb = "Good", "Solid conditions — worth a trip."
+    elif total >= 50:
+        verdict, blurb = "Fair", "Mixed bag — pick your spots carefully."
+    else:
+        verdict, blurb = "Poor", "Better to tie flies indoors."
+
+    return {
+        "score": total,
+        "verdict": verdict,
+        "blurb": blurb,
+        "factors": factors,
+        "contributors": contributors,
+    }
     factors = {}
 
     if 1008 <= pressure_hpa <= 1020:
@@ -341,6 +493,88 @@ def compute_fishing_score(
         verdict, blurb = "Poor", "Better to tie flies indoors."
 
     return {"score": total, "verdict": verdict, "blurb": blurb, "factors": factors}
+
+
+def compute_safety_status(
+    weather_code: int, wind_kmh: float, precip_mm: float,
+    swell_height_m: Optional[float], temp_c: float, is_day: bool,
+) -> Dict[str, Any]:
+    """Compute marine/outdoor safety from weather + wind + swell.
+    Returns {"level": Safe/Use Caution/Dangerous, "reasons": [...], "headline": str}
+    """
+    reasons: List[str] = []
+    level = "Safe"
+
+    # Thunderstorms / lightning
+    if weather_code in (95, 96, 99):
+        level = "Dangerous"
+        reasons.append("Thunderstorm activity — lightning risk")
+    # Dense fog
+    if weather_code in (45, 48):
+        if level == "Safe":
+            level = "Use Caution"
+        reasons.append("Dense fog reduces visibility")
+    # Heavy precipitation
+    if precip_mm > 7.5:
+        if level == "Safe":
+            level = "Use Caution"
+        reasons.append("Heavy rain — flash flood risk")
+    # Wind thresholds (small craft advisory roughly >= 39 km/h sustained)
+    if wind_kmh >= 60:
+        level = "Dangerous"
+        reasons.append(f"Gale-force winds ({round(wind_kmh)} km/h)")
+    elif wind_kmh >= 39:
+        if level != "Dangerous":
+            level = "Use Caution"
+        reasons.append(f"Small craft advisory winds ({round(wind_kmh)} km/h)")
+    # Swell
+    if swell_height_m is not None:
+        if swell_height_m >= 2.5:
+            level = "Dangerous"
+            reasons.append(f"High surf ({swell_height_m:.1f}m swell)")
+        elif swell_height_m >= 1.5:
+            if level != "Dangerous":
+                level = "Use Caution"
+            reasons.append(f"Elevated swell ({swell_height_m:.1f}m)")
+    # Extreme temperature
+    if temp_c >= 38:
+        if level != "Dangerous":
+            level = "Use Caution"
+        reasons.append(f"Extreme heat ({round(temp_c)}°C)")
+    if temp_c <= -5:
+        if level != "Dangerous":
+            level = "Use Caution"
+        reasons.append(f"Hypothermia risk ({round(temp_c)}°C)")
+
+    headline = {
+        "Safe": "Conditions are safe — fish responsibly.",
+        "Use Caution": "Use caution — monitor changing conditions.",
+        "Dangerous": "Dangerous conditions — do not attempt offshore travel.",
+    }[level]
+
+    if not reasons and level == "Safe":
+        reasons = ["No active marine warnings or hazards detected."]
+
+    return {"level": level, "reasons": reasons, "headline": headline}
+
+
+def compute_confidence(
+    has_marine: bool, has_pressure_history: bool, weather_code: int,
+) -> Dict[str, Any]:
+    """Confidence rating for the forecast. Lowered when key data is missing."""
+    score = 100
+    notes: List[str] = []
+    if not has_pressure_history:
+        score -= 15
+        notes.append("Limited pressure history")
+    if weather_code in (95, 96, 99):
+        score -= 15
+        notes.append("Rapidly changing storm conditions")
+    # Marine missing is fine if location is inland
+    label = "High" if score >= 85 else ("Medium" if score >= 65 else "Low")
+    if not notes:
+        notes = ["All key data sources are fresh."]
+    return {"score": score, "label": label, "notes": notes, "has_marine": has_marine}
 
 
 # ============== OPEN-METEO ==============
@@ -600,7 +834,25 @@ async def forecast(lat: float, lon: float):
         precip_mm=current.get("precipitation") or 0.0,
         solunar_score=moon_now["solunar_score"],
         tide_movement=(tide["movement_mph"] if tide else None),
+        tide_direction=(tide["direction"] if tide else None),
         swell_height_m=(swell["current_swell_m"] if swell else None),
+    )
+
+    # Safety status — overrides fishing score if dangerous
+    safety = compute_safety_status(
+        weather_code=current.get("weather_code") or 0,
+        wind_kmh=current.get("wind_speed_10m") or 0.0,
+        precip_mm=current.get("precipitation") or 0.0,
+        swell_height_m=(swell["current_swell_m"] if swell else None),
+        temp_c=current.get("temperature_2m") or 15.0,
+        is_day=bool(current.get("is_day", 1)),
+    )
+
+    # Confidence rating based on data freshness/availability
+    confidence = compute_confidence(
+        has_marine=marine is not None,
+        has_pressure_history=len(pressures_all) >= 12,
+        weather_code=current.get("weather_code") or 0,
     )
 
     sunrise_today = (daily.get("sunrise") or [None])[0]
@@ -683,6 +935,8 @@ async def forecast(lat: float, lon: float):
         "tide": tide,
         "swell": swell,
         "today_score": today_score,
+        "safety": safety,
+        "confidence": confidence,
         "best_window": best_window,
         "days": days,
     }
@@ -861,6 +1115,148 @@ async def ai_recommend(req: RecommendRequest):
         return json.loads(cleaned)
     except Exception:
         return {"target_species": "", "bait": "", "depth": "", "presentation": text.strip()}
+
+
+@api_router.post("/ai/why-here")
+async def ai_why_here(req: AlmanacRequest):
+    where = req.location_name or f"{req.lat:.2f}, {req.lon:.2f}"
+    prompt = (
+        f"In 2-3 sentences (max 60 words), explain WHY this specific location "
+        f"is or isn't favorable for fishing right now: {where}. "
+        f"Conditions: wind {req.wind_kmh} km/h, temp {req.temp_c}°C, "
+        f"weather {req.weather}, pressure trend {req.pressure_trend}, "
+        f"tide {req.tide_direction or 'N/A'}. "
+        f"Focus on geography (proximity to structure, current breaks, bait migration, "
+        f"shoreline orientation vs wind). Plain prose, no markdown."
+    )
+    system = "You are a veteran local fishing guide explaining a location's merits."
+    try:
+        text = await _llm_text(prompt, system, session_id=f"why-here-{req.lat:.2f}-{req.lon:.2f}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM error: {e}")
+    return {"text": text.strip()}
+
+
+@api_router.post("/ai/why-now")
+async def ai_why_now(req: AlmanacRequest):
+    prompt = (
+        f"In 2-3 sentences (max 60 words), explain WHY the current time window "
+        f"is or isn't favorable for fishing. "
+        f"Conditions: score {req.score}/100, pressure trend {req.pressure_trend}, "
+        f"wind {req.wind_kmh} km/h, temp {req.temp_c}°C, weather {req.weather}, "
+        f"moon {req.moon_phase}, tide {req.tide_direction or 'N/A'}. "
+        f"Focus on the timing — solunar overlap, tide stage, sunrise/sunset proximity, "
+        f"pressure trend. Plain prose, no markdown."
+    )
+    system = "You are a veteran fishing guide explaining timing."
+    try:
+        text = await _llm_text(prompt, system, session_id=f"why-now-{req.lat:.2f}-{req.lon:.2f}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM error: {e}")
+    return {"text": text.strip()}
+
+
+@api_router.post("/ai/regulations")
+async def ai_regulations(req: AIRequest):
+    where = req.location_name or f"{req.lat:.2f}, {req.lon:.2f}"
+    prompt = (
+        f"Provide a concise summary of the most common recreational fishing regulations "
+        f"for an angler at {where} (approx lat {req.lat:.2f}, lon {req.lon:.2f}). "
+        f"Cover: 1) state/agency name and license requirement, 2) 3-5 commonly targeted "
+        f"species with bag/size/slot limits when known, 3) any well-known seasonal closures, "
+        f"4) typical gear restrictions. Use short bulleted lines (use '- '). "
+        f"Begin with one sentence identifying the governing agency. "
+        f"At the end, include the line: 'Sources: official state and federal agencies.' "
+        f"No markdown headings."
+    )
+    system = "You summarize recreational fishing regulations concisely. Be accurate."
+    try:
+        text = await _llm_text(prompt, system, session_id=f"regs-{req.lat:.2f}-{req.lon:.2f}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM error: {e}")
+    return {"summary": text.strip()}
+
+
+@api_router.get("/hotspots")
+async def hotspots(lat: float, lon: float, radius_km: float = 8.0):
+    """Find nearby fishing hotspots via OpenStreetMap Overpass API:
+    piers, jetties, marinas, fishing spots, beach access, boat ramps, bridges over water.
+    """
+    radius_m = int(radius_km * 1000)
+    query = f"""
+    [out:json][timeout:25];
+    (
+      node["leisure"="fishing"](around:{radius_m},{lat},{lon});
+      node["man_made"="pier"](around:{radius_m},{lat},{lon});
+      way["man_made"="pier"](around:{radius_m},{lat},{lon});
+      node["man_made"="breakwater"](around:{radius_m},{lat},{lon});
+      way["man_made"="breakwater"](around:{radius_m},{lat},{lon});
+      node["leisure"="slipway"](around:{radius_m},{lat},{lon});
+      way["leisure"="slipway"](around:{radius_m},{lat},{lon});
+      node["leisure"="marina"](around:{radius_m},{lat},{lon});
+      way["leisure"="marina"](around:{radius_m},{lat},{lon});
+      node["natural"="beach"](around:{radius_m},{lat},{lon});
+    );
+    out center 50;
+    """
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as hc:
+            r = await hc.post(
+                "https://overpass-api.de/api/interpreter",
+                data={"data": query},
+                headers={"User-Agent": "FishCast/1.0"},
+            )
+            r.raise_for_status()
+            data = r.json()
+    except Exception as e:
+        logging.warning(f"overpass failed: {e}")
+        return {"spots": []}
+
+    spots = []
+    for el in data.get("elements", [])[:30]:
+        slat = el.get("lat") or (el.get("center") or {}).get("lat")
+        slon = el.get("lon") or (el.get("center") or {}).get("lon")
+        if slat is None or slon is None:
+            continue
+        tags = el.get("tags", {}) or {}
+        name = tags.get("name") or _spot_kind(tags).title()
+        # Approximate distance (haversine)
+        d = _haversine_km(lat, lon, slat, slon)
+        spots.append({
+            "id": str(el.get("id")),
+            "name": name,
+            "kind": _spot_kind(tags),
+            "lat": slat,
+            "lon": slon,
+            "distance_km": round(d, 2),
+        })
+    spots.sort(key=lambda s: s["distance_km"])
+    return {"spots": spots[:25]}
+
+
+def _spot_kind(tags: Dict[str, Any]) -> str:
+    if tags.get("leisure") == "fishing":
+        return "fishing spot"
+    if tags.get("man_made") == "pier":
+        return "pier"
+    if tags.get("man_made") == "breakwater":
+        return "jetty"
+    if tags.get("leisure") == "slipway":
+        return "boat ramp"
+    if tags.get("leisure") == "marina":
+        return "marina"
+    if tags.get("natural") == "beach":
+        return "beach"
+    return "spot"
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    R = 6371.0
+    rl1, rl2 = math.radians(lat1), math.radians(lat2)
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat / 2) ** 2 + math.cos(rl1) * math.cos(rl2) * math.sin(dlon / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(a))
 
 
 # ============== SPOTS ==============

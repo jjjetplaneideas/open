@@ -22,6 +22,8 @@ import LiveConditions from "@/src/components/LiveConditions";
 import TideChart from "@/src/components/TideChart";
 import SwellChart from "@/src/components/SwellChart";
 import MoonCard from "@/src/components/MoonCard";
+import SafetyBanner from "@/src/components/SafetyBanner";
+import ScoreBreakdown from "@/src/components/ScoreBreakdown";
 
 export default function TodayScreen() {
   const router = useRouter();
@@ -183,13 +185,51 @@ export default function TodayScreen() {
           </View>
         </View>
 
+        {/* Safety Banner — appears above everything when not Safe */}
+        <SafetyBanner safety={data.safety} />
+
         {/* Verdict blurb + scene text */}
         <View style={styles.summaryBox}>
           <Text style={styles.summaryBlurb}>{sc.blurb}</Text>
           <Text style={styles.summarySub} testID="scene-summary">
             {data.current.weather_text} · {speedKmh(data.current.wind_kmh, units)} wind · {tempC(data.current.temperature_c, units)}
           </Text>
+          <View style={styles.confidenceRow}>
+            <View
+              style={[
+                styles.confChip,
+                {
+                  backgroundColor:
+                    data.confidence.label === "High"
+                      ? COLORS.brandTertiary
+                      : data.confidence.label === "Medium"
+                      ? "#FBEFC8"
+                      : "#FBEAE7",
+                },
+              ]}
+              testID="confidence-chip"
+            >
+              <Text style={styles.confChipText}>Confidence: {data.confidence.label}</Text>
+            </View>
+            <Pressable
+              testID="hotspots-button"
+              style={styles.linkChip}
+              onPress={() => router.push("/hotspots")}
+            >
+              <Text style={styles.linkChipText}>Nearby Hotspots</Text>
+            </Pressable>
+            <Pressable
+              testID="regulations-button"
+              style={styles.linkChip}
+              onPress={() => router.push("/regulations")}
+            >
+              <Text style={styles.linkChipText}>Regulations</Text>
+            </Pressable>
+          </View>
         </View>
+
+        {/* Score breakdown */}
+        <ScoreBreakdown contributors={sc.contributors || []} />
 
         {/* Best Window */}
         {data.best_window && (
@@ -404,6 +444,14 @@ const styles = StyleSheet.create({
   summaryBox: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md, gap: 4 },
   summaryBlurb: { fontSize: TYPE.lg, color: COLORS.onSurface, fontWeight: "700" },
   summarySub: { fontSize: TYPE.sm, color: COLORS.textMuted },
+  confidenceRow: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm, marginTop: SPACING.sm },
+  confChip: { paddingHorizontal: SPACING.md, paddingVertical: 4, borderRadius: RADIUS.pill },
+  confChipText: { fontSize: 11, fontWeight: "800", color: COLORS.onSurface },
+  linkChip: {
+    paddingHorizontal: SPACING.md, paddingVertical: 4, borderRadius: RADIUS.pill,
+    borderWidth: 1, borderColor: COLORS.brand, backgroundColor: COLORS.surfaceSecondary,
+  },
+  linkChipText: { fontSize: 11, fontWeight: "800", color: COLORS.brand },
 
   cardSlot: { paddingHorizontal: SPACING.lg, marginTop: SPACING.md },
   fullCard: {

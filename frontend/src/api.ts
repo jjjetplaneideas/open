@@ -68,11 +68,26 @@ async function http<T>(
 }
 
 // ============== TYPES ==============
+export type Contributor = { key: string; label: string; delta: number; note: string };
 export type FishingScore = {
   score: number;
   verdict: "Excellent" | "Good" | "Fair" | "Poor";
   blurb: string;
   factors: Record<string, { score: number; note: string }>;
+  contributors: Contributor[];
+};
+
+export type SafetyData = {
+  level: "Safe" | "Use Caution" | "Dangerous";
+  reasons: string[];
+  headline: string;
+};
+
+export type ConfidenceData = {
+  score: number;
+  label: "High" | "Medium" | "Low";
+  notes: string[];
+  has_marine: boolean;
 };
 
 export type ForecastDay = {
@@ -151,6 +166,8 @@ export type ForecastResponse = {
   tide: TideData | null;
   swell: SwellData | null;
   today_score: FishingScore;
+  safety: SafetyData;
+  confidence: ConfidenceData;
   best_window: BestWindow | null;
   days: ForecastDay[];
 };
@@ -236,6 +253,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  whyHere: (body: any) => http<{ text: string }>("/ai/why-here", { method: "POST", body: JSON.stringify(body) }),
+  whyNow: (body: any) => http<{ text: string }>("/ai/why-now", { method: "POST", body: JSON.stringify(body) }),
+  regulations: (body: { lat: number; lon: number; location_name?: string }) =>
+    http<{ summary: string }>("/ai/regulations", { method: "POST", body: JSON.stringify(body) }),
+  hotspots: (lat: number, lon: number, radius_km = 8) =>
+    http<{ spots: { id: string; name: string; kind: string; lat: number; lon: number; distance_km: number }[] }>(
+      "/hotspots",
+      { params: { lat, lon, radius_km } },
+    ),
   listSpots: (user_id: string) => http<Spot[]>("/spots", { params: { user_id } }),
   createSpot: (body: { user_id: string; name: string; lat: number; lon: number; notes?: string }) =>
     http<Spot>("/spots", { method: "POST", body: JSON.stringify(body) }),

@@ -1,0 +1,49 @@
+{
+  "summary": "V1 foundation tested end-to-end. Backend: 18/18 pytest pass — new fields (today_score.contributors, safety {level/reasons/headline}, confidence {label/score/notes/has_marine}), new endpoints (/api/ai/why-here, /api/ai/why-now, /api/ai/regulations), /api/hotspots (~25 spots near Treasure Island FL incl. piers/jetties/boat ramps/marinas/beaches, sorted by distance), Nominatim-based /api/reverse-geocode returns granular 'Treasure Island' rather than 'Tampa Bay'. All prior endpoints (forecast inland & coastal, ai/species/almanac/recommend, geocode, spots/catches CRUD) still pass. Frontend: Onboarding flow redirects fresh visit -> /onboarding, all 3 legal cards present (legal-row-tos/privacy/waiver), continue button (accept-continue-button) gated by 3 switches; accept persists fishcast.legal_acceptance and routes to /(tabs). Today screen shows confidence-chip ('Confidence: High'), hotspots-button, regulations-button, score-breakdown (positive +4/+4/+3/+2/+1/+1/+1 and negative -2 contributors with signed delta pills), fishing-score, verdict-badge. SafetyBanner correctly hidden (safety.level='Safe'). /hotspots route shows hotspots-list with >10 coastal spots. /regulations shows AI-generated FWC summary in regulations-body + disclaimer card. /location modal exposes use-gps-button and pick-on-map-button.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/forecast", "issue": "compute_fishing_score adds 'swell' to factors when coastal but never adds 'swell' to the weights dict — so swell is silently excluded from BOTH the weighted total score AND the contributors list. The reviewer-visible breakdown therefore never shows a swell contributor on coastal locations (only tide/solunar/pressure/wind/clouds/temp/precip). server.py:322-329, 332-334. Fix: add 'swell' to both branches of the weights dict (e.g. 0.08-0.10 weight when present)."},
+      {"endpoint": "compute_fishing_score", "issue": "Function has a fully duplicated dead block (lines 386-495) — appears to be a leftover from a refactor; the early return at line 379 prevents it from executing. Should be deleted for clarity."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "hotspots", "issues": ["Distance values render as '1570.0 m', '2130.0 m', etc. Backend returns distance_km (e.g. 1.57). Likely the formatter is multiplying km by 1000 or rendering wrong unit; numbers should be '1.57 km' or '1570 m' but never both decimals + 'm'. Quick read suggests formatter prints km with 'm' suffix."]},
+      {"screen": "today", "issues": ["Score breakdown card is correct, but consider adding a swell row once backend bug above is fixed."]},
+      {"screen": "global", "issues": ["Persisting cosmetic RN-web console warnings: 'shadow*' (use boxShadow), 'textShadow*' (use textShadow), props.pointerEvents (move to style.pointerEvents). Not blocking."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_fishcast.py",
+    "/app/backend/tests/test_fishcast_v1.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Backend: in compute_fishing_score, add 'swell' to weights dict (both with-tide and without-tide branches) so swell affects the score AND appears in the contributors list. Currently swell is computed but dead.",
+    "Backend: delete the duplicate dead code block in compute_fishing_score (server.py lines 386-495) — unreachable after the early return.",
+    "Frontend: fix distance formatting in /hotspots list — currently shows '1570.0 m', '2130.0 m'. Backend returns distance_km, so multiply by 1000 then drop decimals for meters, OR render as '1.6 km' when >=1.",
+    "Optional: split server.py (~1322 lines) into routers/services/models modules — still over the 700-line guideline.",
+    "Optional cosmetic: migrate deprecated shadow*/textShadow*/pointerEvents props for RN-web."
+  ],
+  "critical_code_review_comments": [
+    "server.py compute_fishing_score has a duplicate dead block (lines 386-495) — must be removed.",
+    "swell factor added to factors but missing from weights dict — silently dropped from total + contributors.",
+    "server.py is now 1322 lines — over the 700-line guideline. Recommend splitting into routers/services/models.",
+    "reverse_geocode correctly uses Nominatim with a real User-Agent and falls back to Open-Meteo then raw coords — good.",
+    "All MongoDB list endpoints exclude _id via projection; Pydantic models on POST never leak _id — verified.",
+    "AI endpoints (why-here/why-now/regulations) use distinct session_ids per lat/lon — good caching property."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_fishcast_v1.py (new — V1 fields, safety, confidence, why-here, why-now, regulations, hotspots, granular reverse-geocode)"
+  ],
+  "success_rate": {"backend": "100% (18/18)", "frontend": "100% on tested V1 flows (onboarding 3-switch accept, Today V1 chips, ScoreBreakdown signed deltas, SafetyBanner correctly hidden at Safe, hotspots list, regulations AI body + disclaimer, location modal GPS + pick-on-map)"},
+  "seed_data_creation": "Playwright cleared localStorage to test onboarding then seeded fishcast.legal_acceptance + fishcast.location (Treasure Island FL 27.7692,-82.769) + fishcast.user_id=TEST_user_playwright to test Today/hotspots/regulations. Pytest spots/catches use TEST_ prefix and clean up after themselves.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "EXPO_PUBLIC_BACKEND_URL is canonical. V1 forecast shape adds: today_score.contributors[]={key,label,delta,note} sorted desc by delta; safety={level: Safe|Use Caution|Dangerous, reasons[], headline}; confidence={score,label: High|Medium|Low,notes[],has_marine}. New endpoints: POST /api/ai/why-here, /api/ai/why-now, /api/ai/regulations (each takes AlmanacRequest-shaped body, returns {text} or {summary}). GET /api/hotspots?lat&lon&radius_km=8 returns {spots:[{id,name,kind,lat,lon,distance_km}]} via OSM Overpass. /api/reverse-geocode now uses Nominatim first → granular community names. Frontend onboarding testIDs: legal-row-{tos|privacy|waiver}, legal-switch-{tos|privacy|waiver}, accept-continue-button. Today testIDs: confidence-chip, hotspots-button, regulations-button, score-breakdown, safety-banner (rendered only when safety.level!='Safe'). Routes: /hotspots → hotspots-list, /regulations → regulations-body, /location → use-gps-button + pick-on-map-button. Onboarding gates entry: clearing localStorage forces redirect to /onboarding.",
+  "rca_of_issue": "Swell silently excluded: in server.py compute_fishing_score, swell is computed and added to `factors` dict when coastal, but `weights` dict is never updated to include 'swell'. The contributor builder at lines 351-368 has `if k not in weights: continue`, so swell is skipped. The weighted total at lines 332-334 also only iterates keys present in weights. Net effect: swell scoring is dead code on coastal locations. Fix: add 'swell': 0.08 (or similar) to both weight dicts (the no-tide and with-tide variants), rebalancing other weights to sum to ~1.0."
+}

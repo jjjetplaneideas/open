@@ -36,11 +36,14 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
           <Stack.Screen name="location" options={{ presentation: "modal" }} />
           <Stack.Screen name="spots" options={{ presentation: "modal" }} />
           <Stack.Screen name="add-catch" options={{ presentation: "modal" }} />
           <Stack.Screen name="settings" options={{ presentation: "modal" }} />
           <Stack.Screen name="map-picker" options={{ presentation: "modal" }} />
+          <Stack.Screen name="regulations" options={{ presentation: "modal" }} />
+          <Stack.Screen name="hotspots" options={{ presentation: "modal" }} />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>
