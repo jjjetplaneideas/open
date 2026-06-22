@@ -130,6 +130,15 @@ export default function LocationScreen() {
             )}
           </Pressable>
 
+          <Pressable
+            testID="pick-on-map-button"
+            style={styles.mapBtn}
+            onPress={() => router.push("/map-picker")}
+          >
+            <Ionicons name="map-outline" size={20} color={COLORS.brand} />
+            <Text style={styles.mapBtnText}>Pick a Pin on the Map</Text>
+          </Pressable>
+
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
             <Text style={styles.dividerText}>or enter manually</Text>
@@ -215,6 +224,18 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
   },
   gpsBtnText: { color: COLORS.onBrandPrimary, fontWeight: "700", fontSize: TYPE.base },
+  mapBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.sm,
+    backgroundColor: COLORS.surfaceSecondary,
+    borderWidth: 2,
+    borderColor: COLORS.brand,
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.md,
+  },
+  mapBtnText: { color: COLORS.brand, fontWeight: "700", fontSize: TYPE.base },
   divider: { flexDirection: "row", alignItems: "center", gap: SPACING.md },
   dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.divider },
   dividerText: { fontSize: TYPE.sm, color: COLORS.textMuted },

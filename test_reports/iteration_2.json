@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 2 — full regression on FishCast enhancements. Backend: 10/10 pytest pass (root, geocode, reverse-geocode, NEW forecast coastal full shape with tide+swell+moon+scene+best_window, NEW forecast inland tide=null/swell=null, NEW AI recommend, AI almanac with moon/tide fields, AI species, spots CRUD, catches CRUD). Frontend: Today screen verified with all 14 expected cards/badges (fishing-score, verdict-badge, scene-summary, best-window, recommendation-card, barometric-card, wind-card, temp-card, moon-card, tide-card, swell-card, sun-card, almanac-card, live-conditions-night_cloudy hero, settings-button, location-pill). Units toggle in Settings modal correctly switches °C↔°F, km/h↔mph, hPa↔inHg across the dashboard. Add-Catch labels reflect units (Weight kg / Length cm in metric). Pick-on-map flow opens map-picker with selected-coords + confirm-pin. Score 73 ('Good') rendered for SF; recommendation card populated by /api/ai/recommend with target/bait/depth/presentation.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "global", "issues": ["Persisting console warnings (cosmetic only): 'shadow*' style props (use boxShadow), 'textShadow*' style props (use textShadow), props.pointerEvents (move to style.pointerEvents). App renders normally."]},
+      {"screen": "map-picker", "issues": ["Leaflet WebView area shows a loading spinner in web preview; selected-coords + confirm-pin are functional, but the actual map tiles did not render via react-native-webview on web in my test window. data-testid=\"map-webview\" was not queryable from outer DOM (likely wrapped as iframe). Likely fine on native, may need verification on web preview if map interaction is required there."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_fishcast.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Optional: verify Leaflet map tiles render inside the WebView on web preview (selected-coords/confirm-pin work, but tiles weren't visible in my screenshot — may just be slow load).",
+    "Optional cosmetic: migrate deprecated shadow*/textShadow*/pointerEvents props to silence RN-web warnings."
+  ],
+  "critical_code_review_comments": [
+    "server.py grew to ~865 lines — over the 700-line guideline. Recommend splitting into routers (forecast/ai/spots/catches), services (open_meteo/marine/ephem/scoring), and models modules for maintainability.",
+    "compute_best_window uses datetime.fromisoformat on Open-Meteo timezone-aware strings which can be naive without TZ info — falls back gracefully but consider normalizing to aware UTC for consistent comparisons.",
+    "extract_tide_data uses datetime.now() (naive) compared to fromisoformat(p['t']) which is also naive (local from Open-Meteo timezone=auto); works because both are naive same-zone but is fragile if data source changes — add an explicit comment or normalize.",
+    "AI recommend/almanac fall back to safe defaults on LLM JSON parse failure — good defensive parsing.",
+    "MongoDB _id correctly excluded via {\"_id\":0} projection on list endpoints; spot/catch responses use Pydantic models without _id leakage — verified."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_fishcast.py (rewrote for new forecast shape + added tests for inland no-marine, AI recommend, almanac with moon/tide)"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% on tested flows (Today cards, units toggle metric↔imperial, location modal + pick-on-map, add-catch labels reflecting units)"},
+  "seed_data_creation": "Playwright test seeded localStorage with fishcast.location = SF (37.7749, -122.4194), fishcast.units = metric/imperial during toggling, fishcast.user_id = TEST_user_playwright. Pytest spots/catches use TEST_ prefix and clean up after themselves.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "EXPO_PUBLIC_BACKEND_URL is canonical. Forecast new shape: today_score.factors includes solunar always, tide+swell only when coastal. tide/swell at top level are null inland. moon object has phase_name, illumination_pct, age_days, moonrise/moonset/transit/antitransit, solunar_score, major_windows[], minor_windows[]. scene is one of clear|partly_cloudy|overcast|rain|heavy_rain|storm|fog|night_clear|night_cloudy. Frontend AsyncStorage maps to localStorage on web; seed fishcast.location & fishcast.units before reload to skip the location modal. All Today cards have testIDs; live-conditions testID is dynamic: live-conditions-{scene}. AI calls take 5-15s — keep 60s timeouts.",
+  "rca_of_issue": "N/A — no functional bugs found."
+}

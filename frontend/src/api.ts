@@ -90,6 +90,44 @@ export type ForecastDay = {
   verdict: "Excellent" | "Good" | "Fair" | "Poor";
 };
 
+export type MoonData = {
+  phase_name: string;
+  illumination_pct: number;
+  age_days: number;
+  moonrise?: string | null;
+  moonset?: string | null;
+  transit?: string | null;
+  antitransit?: string | null;
+  solunar_score: number;
+  major_windows: { label: string; start: string; end: string }[];
+  minor_windows: { label: string; start: string; end: string }[];
+};
+
+export type TideData = {
+  series: { t: string; h: number }[];
+  extrema: { t: string; h: number; kind: "high" | "low" }[];
+  current_height_m: number;
+  movement_mph: number;
+  direction: "incoming" | "outgoing";
+};
+
+export type SwellData = {
+  current_swell_m: number;
+  current_period_s: number | null;
+  current_dir_deg: number | null;
+  current_wave_m: number | null;
+  series: { t: string; swell_h: number; swell_p: number | null; swell_d: number | null; wave_h: number | null }[];
+};
+
+export type BestWindow = { label: string; start: string; end: string };
+
+export type Recommendation = {
+  target_species: string;
+  bait: string;
+  depth: string;
+  presentation: string;
+};
+
 export type ForecastResponse = {
   location: { lat: number; lon: number; timezone: string };
   current: {
@@ -104,15 +142,16 @@ export type ForecastResponse = {
     weather_code: number;
     weather_text: string;
   };
+  scene: string;
   pressure_trend: { trend: "rising" | "falling" | "stable"; delta_hpa: number; label: string };
   pressure_history: number[];
   sunrise?: string;
   sunset?: string;
-  solunar: {
-    major: { start: string; end: string; label: string }[];
-    minor: { start: string; end: string; label: string }[];
-  };
+  moon: MoonData;
+  tide: TideData | null;
+  swell: SwellData | null;
   today_score: FishingScore;
+  best_window: BestWindow | null;
   days: ForecastDay[];
 };
 
@@ -172,8 +211,28 @@ export const api = {
     wind_kmh?: number;
     temp_c?: number;
     weather?: string;
+    moon_phase?: string;
+    tide_direction?: string;
   }) =>
     http<{ almanac: string }>("/ai/almanac", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  recommend: (body: {
+    lat: number;
+    lon: number;
+    location_name?: string;
+    score?: number;
+    verdict?: string;
+    pressure_trend?: string;
+    wind_kmh?: number;
+    temp_c?: number;
+    weather?: string;
+    moon_phase?: string;
+    tide_direction?: string;
+    is_coastal?: boolean;
+  }) =>
+    http<Recommendation>("/ai/recommend", {
       method: "POST",
       body: JSON.stringify(body),
     }),

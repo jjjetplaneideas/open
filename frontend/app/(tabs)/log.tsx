@@ -18,9 +18,11 @@ import * as Haptics from "expo-haptics";
 
 import { api, Catch, getOrCreateUserId } from "@/src/api";
 import { COLORS, RADIUS, SPACING, TYPE } from "@/src/theme";
+import { weight as weightFmt, length as lengthFmt, useUnits } from "@/src/units";
 
 export default function LogScreen() {
   const router = useRouter();
+  const { units } = useUnits();
   const [items, setItems] = useState<Catch[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -113,9 +115,9 @@ export default function LogScreen() {
                     <Text style={styles.species}>{item.species}</Text>
                     {(item.weight_lbs || item.length_in) && (
                       <Text style={styles.meta}>
-                        {item.weight_lbs ? `${item.weight_lbs} lb` : ""}
+                        {item.weight_lbs ? weightFmt(item.weight_lbs, units) : ""}
                         {item.weight_lbs && item.length_in ? "  ·  " : ""}
-                        {item.length_in ? `${item.length_in}"` : ""}
+                        {item.length_in ? lengthFmt(item.length_in, units) : ""}
                       </Text>
                     )}
                   </View>
@@ -129,9 +131,9 @@ export default function LogScreen() {
                     </Text>
                     {(item.weight_lbs || item.length_in) && (
                       <Text style={[styles.meta, { color: COLORS.textMuted }]}>
-                        {item.weight_lbs ? `${item.weight_lbs} lb` : ""}
+                        {item.weight_lbs ? weightFmt(item.weight_lbs, units) : ""}
                         {item.weight_lbs && item.length_in ? "  ·  " : ""}
-                        {item.length_in ? `${item.length_in}"` : ""}
+                        {item.length_in ? lengthFmt(item.length_in, units) : ""}
                       </Text>
                     )}
                   </View>

@@ -39,6 +39,8 @@ export default function RootLayout() {
           <Stack.Screen name="location" options={{ presentation: "modal" }} />
           <Stack.Screen name="spots" options={{ presentation: "modal" }} />
           <Stack.Screen name="add-catch" options={{ presentation: "modal" }} />
+          <Stack.Screen name="settings" options={{ presentation: "modal" }} />
+          <Stack.Screen name="map-picker" options={{ presentation: "modal" }} />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>

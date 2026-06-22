@@ -14,8 +14,10 @@ import { useFocusEffect } from "expo-router";
 
 import { api, ForecastResponse, getSavedLocation } from "@/src/api";
 import { COLORS, RADIUS, SPACING, TYPE, verdictColor } from "@/src/theme";
+import { tempC, speedKmh, pressureValue, pressureUnit, useUnits } from "@/src/units";
 
 export default function ForecastScreen() {
+  const { units } = useUnits();
   const [data, setData] = useState<ForecastResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -115,7 +117,7 @@ export default function ForecastScreen() {
                     {d.weather_text}
                   </Text>
                   <Text style={styles.temps}>
-                    {Math.round(d.tmax_c)}° / {Math.round(d.tmin_c)}°  ·  Wind {Math.round(d.wind_max_kmh)} km/h
+                    {tempC(d.tmax_c, units)} / {tempC(d.tmin_c, units)}  ·  Wind {speedKmh(d.wind_max_kmh, units)}
                   </Text>
                 </View>
                 <Ionicons
@@ -126,7 +128,7 @@ export default function ForecastScreen() {
               </View>
               {isOpen && (
                 <View style={styles.dayDetails}>
-                  <DetailRow icon="speedometer-outline" label="Pressure" value={`${Math.round(d.pressure_hpa)} hPa`} />
+                  <DetailRow icon="speedometer-outline" label="Pressure" value={`${pressureValue(d.pressure_hpa, units)} ${pressureUnit(units)}`} />
                   <DetailRow icon="rainy-outline" label="Precip" value={`${d.precip_mm.toFixed(1)} mm`} />
                   <DetailRow icon="sunny-outline" label="Sunrise" value={fmtTime(d.sunrise)} />
                   <DetailRow icon="moon-outline" label="Sunset" value={fmtTime(d.sunset)} />

@@ -19,9 +19,11 @@ import * as Haptics from "expo-haptics";
 
 import { api, getOrCreateUserId, getSavedLocation } from "@/src/api";
 import { COLORS, RADIUS, SPACING, TYPE } from "@/src/theme";
+import { weightToLbs, lengthToIn, weightUnit, lengthUnit, useUnits } from "@/src/units";
 
 export default function AddCatchScreen() {
   const router = useRouter();
+  const { units } = useUnits();
   const [species, setSpecies] = useState("");
   const [weight, setWeight] = useState("");
   const [length, setLength] = useState("");
@@ -78,8 +80,8 @@ export default function AddCatchScreen() {
       await api.createCatch({
         user_id: uid,
         species: species.trim(),
-        weight_lbs: weight ? parseFloat(weight) : undefined,
-        length_in: length ? parseFloat(length) : undefined,
+        weight_lbs: weight ? weightToLbs(parseFloat(weight), units) : undefined,
+        length_in: length ? lengthToIn(parseFloat(length), units) : undefined,
         notes: notes.trim(),
         location_name: cur?.display || "",
         lat: cur?.lat,
@@ -164,11 +166,11 @@ export default function AddCatchScreen() {
           </Field>
           <View style={{ flexDirection: "row", gap: SPACING.md }}>
             <View style={{ flex: 1 }}>
-              <Field label="Weight (lb)">
+              <Field label={`Weight (${weightUnit(units)})`}>
                 <TextInput
                   testID="weight-input"
                   style={styles.input}
-                  placeholder="2.5"
+                  placeholder={units === "metric" ? "1.2" : "2.5"}
                   placeholderTextColor={COLORS.textMuted}
                   value={weight}
                   onChangeText={setWeight}
@@ -177,11 +179,11 @@ export default function AddCatchScreen() {
               </Field>
             </View>
             <View style={{ flex: 1 }}>
-              <Field label='Length (in)'>
+              <Field label={`Length (${lengthUnit(units)})`}>
                 <TextInput
                   testID="length-input"
                   style={styles.input}
-                  placeholder="14"
+                  placeholder={units === "metric" ? "36" : "14"}
                   placeholderTextColor={COLORS.textMuted}
                   value={length}
                   onChangeText={setLength}
