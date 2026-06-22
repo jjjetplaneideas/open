@@ -10,7 +10,6 @@ from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
 import httpx
-import math
 import asyncio
 
 import ephem  # type: ignore
@@ -122,7 +121,7 @@ def compute_moon(lat: float, lon: float, when: Optional[datetime] = None) -> Dic
     obs.date = _ephem_dt(when)
 
     moon = ephem.Moon(obs)
-    sun = ephem.Sun(obs)
+    _sun = ephem.Sun(obs)
 
     # Phase (illumination % and named phase)
     illum_pct = float(moon.phase)
@@ -652,7 +651,7 @@ def compute_best_window(hourly: Dict[str, Any], moon_now: Dict[str, Any],
     for w in (moon_now.get("major_windows") or []) + (moon_now.get("minor_windows") or []):
         try:
             start = datetime.fromisoformat(w["start"])
-            end = datetime.fromisoformat(w["end"])
+            _end = datetime.fromisoformat(w["end"])
             # Prefer windows during daylight
             if start.date() == sr.date() and sr - timedelta(hours=1) <= start <= ss + timedelta(hours=1):
                 candidates.append({"label": w["label"], "start": w["start"], "end": w["end"], "priority": 1 if "rise" in w["label"].lower() or "set" in w["label"].lower() else 2})
@@ -682,14 +681,20 @@ def _derive_season(lat: float) -> str:
     month = datetime.now().month
     northern = lat >= 0
     if northern:
-        if month in (12, 1, 2): return "winter"
-        if month in (3, 4, 5): return "spring"
-        if month in (6, 7, 8): return "summer"
+        if month in (12, 1, 2):
+            return "winter"
+        if month in (3, 4, 5):
+            return "spring"
+        if month in (6, 7, 8):
+            return "summer"
         return "autumn"
     else:
-        if month in (12, 1, 2): return "summer"
-        if month in (3, 4, 5): return "autumn"
-        if month in (6, 7, 8): return "winter"
+        if month in (12, 1, 2):
+            return "summer"
+        if month in (3, 4, 5):
+            return "autumn"
+        if month in (6, 7, 8):
+            return "winter"
         return "spring"
 
 
@@ -718,11 +723,13 @@ async def ai_species(req: AIRequest):
         text = await _llm_text(prompt, system, session_id=f"species-{req.lat:.2f}-{req.lon:.2f}-{season}")
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"LLM error: {e}")
-    import json, re
+    import json
+    import re
     cleaned = re.sub(r"^```(?:json)?\s*", "", text.strip())
     cleaned = re.sub(r"\s*```$", "", cleaned)
     m = re.search(r"\[.*\]", cleaned, re.DOTALL)
-    if m: cleaned = m.group(0)
+    if m:
+        cleaned = m.group(0)
     try:
         species = json.loads(cleaned)
     except Exception:
@@ -790,11 +797,13 @@ async def ai_recommend(req: RecommendRequest):
         text = await _llm_text(prompt, system, session_id=f"rec-{req.lat:.2f}-{req.lon:.2f}")
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"LLM error: {e}")
-    import json, re
+    import json
+    import re
     cleaned = re.sub(r"^```(?:json)?\s*", "", text.strip())
     cleaned = re.sub(r"\s*```$", "", cleaned)
     m = re.search(r"\{.*\}", cleaned, re.DOTALL)
-    if m: cleaned = m.group(0)
+    if m:
+        cleaned = m.group(0)
     try:
         return json.loads(cleaned)
     except Exception:
