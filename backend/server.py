@@ -1152,7 +1152,315 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * R * math.asin(math.sqrt(a))
 
 
-# ============== SPOTS ==============
+@api_router.get("/forecast/hourly")
+async def forecast_hourly(lat: float, lon: float):
+    """24-hour bite forecast: per-hour score with solunar overlay."""
+    try:
+        data, marine = await asyncio.gather(fetch_open_meteo(lat, lon), fetch_marine(lat, lon))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Open-Meteo error: {e}")
+
+    hourly = data.get("hourly") or {}
+    times: List[str] = hourly.get("time") or []
+    pressures: List[Optional[float]] = hourly.get("surface_pressure") or []
+    temps: List[Optional[float]] = hourly.get("temperature_2m") or []
+    winds: List[Optional[float]] = hourly.get("wind_speed_10m") or []
+    clouds: List[Optional[float]] = hourly.get("cloud_cover") or []
+    precs: List[Optional[float]] = hourly.get("precipitation") or []
+    codes: List[Optional[int]] = hourly.get("weather_code") or []
+
+    # Marine series (tide) if available
+    marine_h = (marine or {}).get("hourly") or {}
+    marine_times = marine_h.get("time") or []
+    marine_sl = marine_h.get("sea_level_height_msl") or []
+    marine_swell = marine_h.get("swell_wave_height") or []
+
+    # Build moon windows for next 24h
+    now = datetime.now(timezone.utc)
+    moon = compute_moon(lat, lon, now)
+
+    # Determine "now" index in hourly
+    def parse_iso(t: str) -> datetime:
+        try:
+            return datetime.fromisoformat(t)
+        except Exception:
+            return now
+
+    if not times:
+        return {"hours": [], "moon_windows": []}
+    start_idx = 0
+    for i, t in enumerate(times):
+        if parse_iso(t) >= now.astimezone(parse_iso(times[0]).tzinfo or timezone.utc).replace(tzinfo=parse_iso(times[0]).tzinfo):
+            start_idx = max(0, i - 1)
+            break
+
+    hours = []
+    for i in range(start_idx, min(start_idx + 24, len(times))):
+        t = times[i]
+        # Tide movement at this hour
+        tide_mph = None
+        tide_dir = None
+        if marine_times and marine_sl and t in marine_times:
+            mi = marine_times.index(t)
+            if mi > 0 and marine_sl[mi] is not None and marine_sl[mi - 1] is not None:
+                tide_mph = abs(marine_sl[mi] - marine_sl[mi - 1])
+                tide_dir = "incoming" if marine_sl[mi] > marine_sl[mi - 1] else "outgoing"
+        swell_m = None
+        if marine_swell and t in marine_times:
+            mi = marine_times.index(t)
+            if mi < len(marine_swell):
+                swell_m = marine_swell[mi]
+
+        # Lightweight pressure trend approximation: compare with i-3
+        trend = "stable"
+        if i >= 3 and pressures[i] is not None and pressures[i - 3] is not None:
+            d = pressures[i] - pressures[i - 3]
+            if d >= 1.0:
+                trend = "rising"
+            elif d <= -1.0:
+                trend = "falling"
+
+        # Approximate per-hour solunar score: boost during major/minor windows
+        h_dt = parse_iso(t)
+        in_major = any(
+            datetime.fromisoformat(w["start"]) <= h_dt.replace(tzinfo=datetime.fromisoformat(w["start"]).tzinfo) <= datetime.fromisoformat(w["end"])
+            for w in (moon.get("major_windows") or [])
+        )
+        in_minor = any(
+            datetime.fromisoformat(w["start"]) <= h_dt.replace(tzinfo=datetime.fromisoformat(w["start"]).tzinfo) <= datetime.fromisoformat(w["end"])
+            for w in (moon.get("minor_windows") or [])
+        )
+        hourly_solunar = (
+            min(100, moon["solunar_score"] + 20) if in_major
+            else min(100, moon["solunar_score"] + 10) if in_minor
+            else max(20, moon["solunar_score"] - 15)
+        )
+
+        score = compute_fishing_score(
+            pressure_hpa=pressures[i] or 1013.0,
+            pressure_trend=trend,
+            wind_kmh=winds[i] or 0.0,
+            temp_c=temps[i] or 15.0,
+            cloud_pct=clouds[i] or 0.0,
+            precip_mm=precs[i] or 0.0,
+            solunar_score=hourly_solunar,
+            tide_movement=tide_mph,
+            tide_direction=tide_dir,
+            swell_height_m=swell_m,
+        )
+
+        hours.append({
+            "time": t,
+            "score": score["score"],
+            "verdict": score["verdict"],
+            "weather_code": codes[i] if i < len(codes) else 0,
+            "weather_text": weather_code_to_text(codes[i] if i < len(codes) else 0),
+            "in_major": in_major,
+            "in_minor": in_minor,
+            "temp_c": temps[i],
+            "wind_kmh": winds[i],
+            "tide_direction": tide_dir,
+        })
+
+    return {
+        "hours": hours,
+        "moon_windows": {
+            "major": moon.get("major_windows") or [],
+            "minor": moon.get("minor_windows") or [],
+        },
+    }
+
+
+class ExplainRequest(BaseModel):
+    lat: float
+    lon: float
+    location_name: Optional[str] = ""
+    score: int
+    verdict: str
+    contributors: List[Dict[str, Any]] = []
+
+
+@api_router.post("/ai/explain-score")
+async def ai_explain_score(req: ExplainRequest):
+    pos = [c for c in req.contributors if c.get("delta", 0) > 0]
+    neg = [c for c in req.contributors if c.get("delta", 0) < 0]
+    pos_str = ", ".join(f"{c['label']} ({c['delta']:+d})" for c in pos[:4]) or "none"
+    neg_str = ", ".join(f"{c['label']} ({c['delta']:+d})" for c in neg[:4]) or "none"
+    where = req.location_name or f"{req.lat:.2f}, {req.lon:.2f}"
+    prompt = (
+        f"Explain in 2 sentences (max 50 words) why today's fishing score in {where} is "
+        f"{req.score}/100 ({req.verdict}). Top positives: {pos_str}. Top negatives: {neg_str}. "
+        f"Use plain beginner-friendly language. No jargon, no markdown, no headings."
+    )
+    system = "You explain fishing forecasts in friendly plain language. Be concise."
+    try:
+        text = await _llm_text(prompt, system, session_id=f"explain-{req.lat:.2f}-{req.lon:.2f}-{req.score}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM error: {e}")
+    return {"text": text.strip()}
+
+
+class SpeciesDetailRequest(BaseModel):
+    common_name: str
+    location_name: Optional[str] = ""
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+
+
+@api_router.post("/ai/species-detail")
+async def ai_species_detail(req: SpeciesDetailRequest):
+    where = req.location_name or "the user's region"
+    prompt = (
+        f"Provide a detailed angler profile for {req.common_name} in {where}. "
+        f"Return STRICT JSON with these keys: "
+        f"scientific_name, identification (1 short sentence), habitat (1 sentence), "
+        f"range (1 sentence), seasonal_activity (1 sentence), best_time_of_day, "
+        f"best_tide_stage, best_moon_phase, preferred_water_temp_f, preferred_structure, "
+        f"typical_depth_ft, baits (array of 3-5 strings), lures (array of 3-5 strings), "
+        f"techniques (array of 2-3 short strings), typical_size (string), trophy_size (string), "
+        f"regulations_note (one sentence — generic, end with 'verify with local agency'). "
+        f"No prose outside JSON. No markdown fences."
+    )
+    system = "You are a fisheries biologist. Output strict JSON only."
+    try:
+        text = await _llm_text(prompt, system, session_id=f"species-detail-{req.common_name}-{req.lat or 0:.1f}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM error: {e}")
+    import json
+    import re
+    cleaned = re.sub(r"^```(?:json)?\s*", "", text.strip())
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+    m = re.search(r"\{.*\}", cleaned, re.DOTALL)
+    if m:
+        cleaned = m.group(0)
+    try:
+        return json.loads(cleaned)
+    except Exception:
+        return {"scientific_name": "", "identification": text.strip(), "regulations_note": ""}
+
+
+# ============== USER DATA EXPORT / DELETE ==============
+
+@api_router.get("/user/export")
+async def export_user(user_id: str):
+    spots = await db.spots.find({"user_id": user_id}, {"_id": 0}).to_list(10000)
+    catches = await db.catches.find({"user_id": user_id}, {"_id": 0}).to_list(10000)
+    return {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "user_id": user_id,
+        "spots": spots,
+        "catches": catches,
+    }
+
+
+@api_router.delete("/user/data")
+async def delete_user_data(user_id: str):
+    s = await db.spots.delete_many({"user_id": user_id})
+    c = await db.catches.delete_many({"user_id": user_id})
+    return {"spots_deleted": s.deleted_count, "catches_deleted": c.deleted_count}
+
+
+# ============== CATCH ANALYTICS ==============
+
+@api_router.get("/catches/analytics")
+async def catch_analytics(user_id: str):
+    """Derive personal fishing patterns from the user's logged catches."""
+    items = await db.catches.find({"user_id": user_id}, {"_id": 0}).to_list(10000)
+    total = len(items)
+    if total == 0:
+        return {"total": 0, "insights": []}
+
+    # Aggregate by species
+    by_species: Dict[str, int] = {}
+    by_tide: Dict[str, int] = {}
+    by_moon: Dict[str, int] = {}
+    by_hour: Dict[int, int] = {}
+    pressures: List[float] = []
+    by_bait: Dict[str, int] = {}
+
+    for c in items:
+        sp = (c.get("species") or "Unknown").strip()
+        by_species[sp] = by_species.get(sp, 0) + 1
+        conds = c.get("conditions") or {}
+        td = conds.get("tide_direction") or ""
+        if td:
+            by_tide[td] = by_tide.get(td, 0) + 1
+        mp = conds.get("moon_phase") or ""
+        if mp:
+            by_moon[mp] = by_moon.get(mp, 0) + 1
+        p = conds.get("pressure_hpa")
+        if isinstance(p, (int, float)):
+            pressures.append(float(p))
+        try:
+            t = c.get("caught_at")
+            if t:
+                h = datetime.fromisoformat(t).hour
+                by_hour[h] = by_hour.get(h, 0) + 1
+        except Exception:
+            pass
+        bait = (c.get("notes") or "").strip().lower()
+        if bait:
+            for token in ["shrimp", "minnow", "pinfish", "plug", "jerkbait", "spinnerbait", "jig", "fly", "swimbait", "soft plastic"]:
+                if token in bait:
+                    by_bait[token] = by_bait.get(token, 0) + 1
+
+    insights = []
+    # Top species
+    if by_species:
+        top_sp = max(by_species, key=by_species.get)
+        pct = round(100 * by_species[top_sp] / total)
+        insights.append({
+            "title": "Top species",
+            "text": f"{top_sp} accounts for {pct}% of your catches ({by_species[top_sp]} of {total}).",
+        })
+    # Tide
+    if by_tide:
+        top_t = max(by_tide, key=by_tide.get)
+        t_pct = round(100 * by_tide[top_t] / sum(by_tide.values()))
+        insights.append({
+            "title": "Best tide",
+            "text": f"You catch {t_pct}% of your fish on {top_t} tides.",
+        })
+    # Moon
+    if by_moon:
+        top_m = max(by_moon, key=by_moon.get)
+        insights.append({
+            "title": "Best moon phase",
+            "text": f"Your most productive moon phase is {top_m}.",
+        })
+    # Hour
+    if by_hour:
+        peak_h = max(by_hour, key=by_hour.get)
+        period = "morning" if peak_h < 11 else ("afternoon" if peak_h < 17 else "evening")
+        insights.append({
+            "title": "Best time",
+            "text": f"Most of your catches happen around {peak_h:02d}:00 — the {period} bite is your strength.",
+        })
+    # Pressure window
+    if len(pressures) >= 3:
+        avg = sum(pressures) / len(pressures)
+        insights.append({
+            "title": "Pressure sweet spot",
+            "text": f"Your catches cluster near {avg:.1f} hPa ({avg * 0.02953:.2f} inHg).",
+        })
+    # Bait
+    if by_bait:
+        top_b = max(by_bait, key=by_bait.get)
+        insights.append({
+            "title": "Top bait",
+            "text": f"'{top_b}' shows up most often in your catch notes — your confidence bait.",
+        })
+
+    return {
+        "total": total,
+        "insights": insights,
+        "by_species": [{"name": k, "count": v} for k, v in sorted(by_species.items(), key=lambda kv: -kv[1])[:10]],
+        "by_tide": by_tide,
+        "by_moon": by_moon,
+    }
+
+
+# ============== SPOTS (extended) ==============
 
 @api_router.get("/spots")
 async def list_spots(user_id: str):

@@ -24,6 +24,8 @@ import SwellChart from "@/src/components/SwellChart";
 import MoonCard from "@/src/components/MoonCard";
 import SafetyBanner from "@/src/components/SafetyBanner";
 import ScoreBreakdown from "@/src/components/ScoreBreakdown";
+import HourlyBiteForecast from "@/src/components/HourlyBiteForecast";
+import { BASE_URL } from "@/src/api";
 
 export default function TodayScreen() {
   const router = useRouter();
@@ -32,6 +34,8 @@ export default function TodayScreen() {
   const [data, setData] = useState<ForecastResponse | null>(null);
   const [almanac, setAlmanac] = useState<string>("");
   const [rec, setRec] = useState<Recommendation | null>(null);
+  const [explanation, setExplanation] = useState<string>("");
+  const [loadingExplanation, setLoadingExplanation] = useState(false);
   const [loadingAlmanac, setLoadingAlmanac] = useState(false);
   const [loadingRec, setLoadingRec] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -75,6 +79,19 @@ export default function TodayScreen() {
         .then((r) => setRec(r))
         .catch(() => setRec(null))
         .finally(() => setLoadingRec(false));
+
+      setLoadingExplanation(true);
+      api.explainScore({
+        lat: saved.lat,
+        lon: saved.lon,
+        location_name: saved.display,
+        score: f.today_score.score,
+        verdict: f.today_score.verdict,
+        contributors: f.today_score.contributors || [],
+      })
+        .then((r) => setExplanation(r.text))
+        .catch(() => setExplanation(""))
+        .finally(() => setLoadingExplanation(false));
     } catch (e: any) {
       setError(e?.message || "Unable to fetch conditions");
     } finally {
@@ -230,6 +247,24 @@ export default function TodayScreen() {
 
         {/* Score breakdown */}
         <ScoreBreakdown contributors={sc.contributors || []} />
+
+        {/* Plain-language explainer */}
+        <View style={styles.fullCard} testID="score-explanation">
+          <View style={{ flexDirection: "row", gap: SPACING.sm, alignItems: "center" }}>
+            <Ionicons name="bulb-outline" size={18} color={COLORS.brand} />
+            <Text style={styles.cardTitle}>Why is today a {sc.score}?</Text>
+          </View>
+          {loadingExplanation ? (
+            <ActivityIndicator color={COLORS.brand} style={{ marginTop: SPACING.md }} />
+          ) : (
+            <Text style={[styles.almanacText, { color: COLORS.onSurface, marginTop: SPACING.sm }]}>
+              {explanation || "Pull to refresh for an updated explanation."}
+            </Text>
+          )}
+        </View>
+
+        {/* Hourly bite forecast */}
+        <HourlyBiteForecast baseUrl={BASE_URL} lat={loc.lat} lon={loc.lon} />
 
         {/* Best Window */}
         {data.best_window && (

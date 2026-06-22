@@ -44,6 +44,7 @@ export default function RootLayout() {
           <Stack.Screen name="map-picker" options={{ presentation: "modal" }} />
           <Stack.Screen name="regulations" options={{ presentation: "modal" }} />
           <Stack.Screen name="hotspots" options={{ presentation: "modal" }} />
+          <Stack.Screen name="analytics" options={{ presentation: "modal" }} />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>

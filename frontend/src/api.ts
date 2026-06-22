@@ -253,6 +253,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  explainScore: (body: { lat: number; lon: number; location_name?: string; score: number; verdict: string; contributors: any[] }) =>
+    http<{ text: string }>("/ai/explain-score", { method: "POST", body: JSON.stringify(body) }),
+  speciesDetail: (body: { common_name: string; location_name?: string; lat?: number; lon?: number }) =>
+    http<any>("/ai/species-detail", { method: "POST", body: JSON.stringify(body) }),
+  catchAnalytics: (user_id: string) =>
+    http<{ total: number; insights: { title: string; text: string }[]; by_species: { name: string; count: number }[] }>(
+      "/catches/analytics", { params: { user_id } },
+    ),
+  exportUser: (user_id: string) => http<any>("/user/export", { params: { user_id } }),
+  deleteUserData: (user_id: string) =>
+    http<{ spots_deleted: number; catches_deleted: number }>("/user/data", { method: "DELETE", params: { user_id } }),
   whyHere: (body: any) => http<{ text: string }>("/ai/why-here", { method: "POST", body: JSON.stringify(body) }),
   whyNow: (body: any) => http<{ text: string }>("/ai/why-now", { method: "POST", body: JSON.stringify(body) }),
   regulations: (body: { lat: number; lon: number; location_name?: string }) =>

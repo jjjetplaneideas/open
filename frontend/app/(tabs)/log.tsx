@@ -179,6 +179,14 @@ export default function LogScreen() {
       >
         <Ionicons name="add" size={28} color={COLORS.onBrandPrimary} />
       </Pressable>
+
+      <Pressable
+        testID="analytics-button"
+        style={styles.analyticsBtn}
+        onPress={() => router.push("/analytics")}
+      >
+        <Ionicons name="analytics-outline" size={20} color={COLORS.brand} />
+      </Pressable>
     </SafeAreaView>
   );
 }
@@ -233,5 +241,18 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
+  },
+  analyticsBtn: {
+    position: "absolute",
+    right: SPACING.lg + 70,
+    bottom: 100 + 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.surfaceSecondary,
+    borderWidth: 2,
+    borderColor: COLORS.brand,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
