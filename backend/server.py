@@ -302,7 +302,7 @@ def compute_fishing_score(
     weights = {
         "pressure_trend": 0.24, "pressure": 0.14, "wind": 0.14,
         "clouds": 0.10, "temperature": 0.10, "precipitation": 0.08,
-        "solunar": 0.20,
+        "solunar": 0.20, "swell": 0.0,
     }
 
     if tide_movement is not None:
@@ -314,9 +314,9 @@ def compute_fishing_score(
             tide_score, tide_note = 70, f"Moderate {tide_direction or ''} tide".strip()
         factors["tide"] = {"score": tide_score, "note": tide_note}
         weights = {
-            "pressure_trend": 0.20, "pressure": 0.12, "wind": 0.12,
+            "pressure_trend": 0.18, "pressure": 0.10, "wind": 0.12,
             "clouds": 0.08, "temperature": 0.08, "precipitation": 0.06,
-            "solunar": 0.16, "tide": 0.18,
+            "solunar": 0.16, "tide": 0.14, "swell": 0.08,
         }
 
     if swell_height_m is not None and swell_height_m > 0:
@@ -327,6 +327,9 @@ def compute_fishing_score(
         else:
             sw_score, sw_note = 35, "Dangerous swell — stay onshore"
         factors["swell"] = {"score": sw_score, "note": sw_note}
+        # Ensure swell weight is non-zero (when not coastal we already set it; here we boost it)
+        if "tide" not in factors:
+            weights["swell"] = 0.10
 
     # Normalize total
     used = {k: factors[k]["score"] for k in factors if k in weights}
@@ -383,116 +386,6 @@ def compute_fishing_score(
         "factors": factors,
         "contributors": contributors,
     }
-    factors = {}
-
-    if 1008 <= pressure_hpa <= 1020:
-        p_score, p_note = 90, "Ideal pressure window"
-    elif 1003 <= pressure_hpa < 1008 or 1020 < pressure_hpa <= 1025:
-        p_score, p_note = 70, "Acceptable pressure"
-    else:
-        p_score, p_note = 45, "Pressure outside ideal range"
-    factors["pressure"] = {"score": p_score, "note": p_note}
-
-    if pressure_trend == "falling":
-        t_score, t_note = 95, "Falling pressure — fish feeding actively"
-    elif pressure_trend == "stable":
-        t_score, t_note = 75, "Stable pressure — steady bite"
-    else:
-        t_score, t_note = 50, "Rising pressure — fish less active"
-    factors["pressure_trend"] = {"score": t_score, "note": t_note}
-
-    if 5 <= wind_kmh <= 20:
-        w_score, w_note = 90, "Light chop — perfect"
-    elif wind_kmh < 5:
-        w_score, w_note = 65, "Too calm"
-    elif wind_kmh <= 30:
-        w_score, w_note = 60, "Breezy — be cautious"
-    else:
-        w_score, w_note = 30, "Strong winds — unsafe"
-    factors["wind"] = {"score": w_score, "note": w_note}
-
-    if 40 <= cloud_pct <= 80:
-        c_score, c_note = 85, "Overcast — fish less spooked"
-    elif cloud_pct < 40:
-        c_score, c_note = 65, "Clear skies"
-    else:
-        c_score, c_note = 75, "Heavy clouds"
-    factors["clouds"] = {"score": c_score, "note": c_note}
-
-    if 15 <= temp_c <= 25:
-        temp_score, temp_note = 85, "Comfortable water temps"
-    elif 8 <= temp_c < 15 or 25 < temp_c <= 30:
-        temp_score, temp_note = 70, "Acceptable temperature"
-    else:
-        temp_score, temp_note = 50, "Extreme temperature"
-    factors["temperature"] = {"score": temp_score, "note": temp_note}
-
-    if precip_mm == 0:
-        precip_score, precip_note = 80, "Dry conditions"
-    elif precip_mm <= 2.5:
-        precip_score, precip_note = 75, "Light rain — often great"
-    elif precip_mm <= 7.5:
-        precip_score, precip_note = 55, "Steady rain"
-    else:
-        precip_score, precip_note = 35, "Heavy downpour"
-    factors["precipitation"] = {"score": precip_score, "note": precip_note}
-
-    factors["solunar"] = {
-        "score": solunar_score,
-        "note": (
-            "Major moon window soon — peak feeding" if solunar_score >= 80
-            else "Solid solunar phase" if solunar_score >= 60
-            else "Weak solunar period"
-        ),
-    }
-
-    # Optional tide factor
-    weights = {
-        "pressure_trend": 0.24, "pressure": 0.14, "wind": 0.14,
-        "clouds": 0.10, "temperature": 0.10, "precipitation": 0.08,
-        "solunar": 0.20,
-    }
-
-    if tide_movement is not None:
-        # tide_movement in meters/hour (absolute). 0.2-0.6 m/h ideal for fish
-        if 0.15 <= tide_movement <= 0.7:
-            tide_score, tide_note = 90, "Strong tide movement — fish on the feed"
-        elif tide_movement < 0.05:
-            tide_score, tide_note = 45, "Slack tide — slow bite"
-        else:
-            tide_score, tide_note = 70, "Moderate tide movement"
-        factors["tide"] = {"score": tide_score, "note": tide_note}
-        # Shift weights when tides are relevant
-        weights = {
-            "pressure_trend": 0.20, "pressure": 0.12, "wind": 0.12,
-            "clouds": 0.08, "temperature": 0.08, "precipitation": 0.06,
-            "solunar": 0.16, "tide": 0.18,
-        }
-
-    if swell_height_m is not None and swell_height_m > 0:
-        if swell_height_m <= 1.2:
-            sw_score, sw_note = 85, "Fishable swell"
-        elif swell_height_m <= 2.0:
-            sw_score, sw_note = 60, "Big swell — pick sheltered spots"
-        else:
-            sw_score, sw_note = 35, "Dangerous swell — stay onshore"
-        factors["swell"] = {"score": sw_score, "note": sw_note}
-
-    total = sum(factors[k]["score"] * w for k, w in weights.items() if k in factors)
-    # Normalize because we may not have all keys
-    w_sum = sum(w for k, w in weights.items() if k in factors)
-    total = round(total / w_sum) if w_sum else 0
-
-    if total >= 80:
-        verdict, blurb = "Excellent", "Drop everything and grab your rod."
-    elif total >= 65:
-        verdict, blurb = "Good", "Solid conditions — worth a trip."
-    elif total >= 50:
-        verdict, blurb = "Fair", "Mixed bag — pick your spots carefully."
-    else:
-        verdict, blurb = "Poor", "Better to tie flies indoors."
-
-    return {"score": total, "verdict": verdict, "blurb": blurb, "factors": factors}
 
 
 def compute_safety_status(

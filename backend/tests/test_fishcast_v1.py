@@ -38,11 +38,14 @@ def test_forecast_contributors_safety_confidence_coastal():
     # coastal -> should include tide & solunar in contributors
     assert "tide" in keys_seen
     assert "solunar" in keys_seen
-    # NOTE: swell factor is computed in `factors` but NEVER added to `weights`,
-    # so it is silently dropped from contributors AND from the weighted total.
-    # This is a backend bug (server.py compute_fishing_score) — see report.
+    # Swell should also be present (fixed: swell now has weight & appears in contributors)
     factors_keys = set((ts.get("factors") or {}).keys())
     assert "swell" in factors_keys, "swell factor should be present in factors for coastal"
+    assert "swell" in keys_seen, "swell should appear as a contributor for coastal locations"
+    swell_contrib = next(c for c in contribs if c["key"] == "swell")
+    assert swell_contrib["label"] == "Swell"
+    assert isinstance(swell_contrib["delta"], int)
+    assert isinstance(swell_contrib["note"], str) and len(swell_contrib["note"]) > 3
     # contributors should be sorted descending by delta
     deltas = [c["delta"] for c in contribs]
     assert deltas == sorted(deltas, reverse=True)

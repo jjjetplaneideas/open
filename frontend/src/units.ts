@@ -73,6 +73,10 @@ export const distM = (m: number, u: UnitSystem) =>
   u === "imperial" ? `${Math.round(m * 3.28084)} ft` : `${m.toFixed(1)} m`;
 export const distUnit = (u: UnitSystem) => (u === "imperial" ? "ft" : "m");
 
+// Larger distances (km → mi). Input in km.
+export const distKm = (km: number, u: UnitSystem) =>
+  u === "imperial" ? `${(km * 0.621371).toFixed(1)} mi` : `${km.toFixed(1)} km`;
+
 // Wave / Swell height (m)
 export const heightM = (m: number, u: UnitSystem) => {
   if (u === "imperial") return `${(m * 3.28084).toFixed(1)} ft`;

@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { api, getSavedLocation } from "@/src/api";
 import { COLORS, RADIUS, SPACING, TYPE } from "@/src/theme";
-import { distM, useUnits } from "@/src/units";
+import { distKm, useUnits } from "@/src/units";
 
 const ICONS: Record<string, any> = {
   pier: "boat-outline",
@@ -71,7 +71,7 @@ export default function HotspotsScreen() {
                 <Text style={styles.spotName}>{item.name}</Text>
                 <Text style={styles.spotKind}>{item.kind}</Text>
               </View>
-              <Text style={styles.spotDist}>{distM(item.distance_km * 1000, units)}</Text>
+              <Text style={styles.spotDist}>{distKm(item.distance_km, units)}</Text>
             </View>
           )}
         />

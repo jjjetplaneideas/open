@@ -1,0 +1,36 @@
+{
+  "summary": "Retest of FishCast V1 fixes — ALL THREE FIXES VERIFIED. (1) Swell now appears in contributors for coastal locations: GET /api/forecast?lat=37.7&lon=-122.5 returns today_score.contributors with an entry {key:'swell', label:'Swell', delta:2, note:'Fishable swell'}; Treasure Island (27.7692,-82.769) also exposes swell contributor — confirmed via pytest assertion. (2) Duplicate dead block removed from compute_fishing_score: server.py is now 1215 lines (was 1322 in prior iteration), function ends cleanly at line 388 after returning {score, verdict, blurb, factors, contributors}. (3) Hotspot distance formatting is now correct via distKm() in /app/frontend/src/units.ts:77-78 — Playwright verified metric shows '1.6 km, 2.1 km, 2.6 km, ...' and imperial shows '1.0 mi, 1.3 mi, 1.6 mi, ...' after toggling units. NO regressions: all 18/18 pytest tests pass (forecast coastal+inland, contributors+safety+confidence, AI why-here/why-now/regulations, geocode+reverse-geocode, hotspots coastal+inland, spots/catches CRUD).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "global", "issues": ["Persisting cosmetic RN-web console warnings: 'shadow*' (use boxShadow), 'textShadow*' (use textShadow). Not blocking."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_fishcast.py",
+    "/app/backend/tests/test_fishcast_v1.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Optional: split server.py (~1215 lines) into routers/services/models modules — still over the 700-line guideline.",
+    "Optional cosmetic: migrate deprecated shadow*/textShadow* RN-web style props."
+  ],
+  "critical_code_review_comments": [
+    "Swell weight fix verified: weights dict now includes 'swell':0.0 in no-tide branch and 'swell':0.08 in with-tide branch, with a non-zero boost (0.10) when factors include swell but no tide. Contributor builder at lines 354-371 correctly emits swell entry.",
+    "Duplicate dead block (previously lines 386-495) successfully removed. server.py compute_fishing_score is now clean and ends at line 388.",
+    "distKm() in /app/frontend/src/units.ts correctly renders km→mi conversion and never falls back to meters/feet for hotspot list — verified on the rendered page.",
+    "server.py is still 1215 lines — over the 700-line guideline. Recommend splitting (low priority)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_fishcast_v1.py (updated test_forecast_contributors_safety_confidence_coastal to assert swell IS now in contributors, with label='Swell', integer delta, and note string)"
+  ],
+  "success_rate": {"backend": "100% (18/18)", "frontend": "100% on hotspots distance formatting (metric km + imperial mi confirmed via Playwright)"},
+  "seed_data_creation": "Playwright seeded localStorage: fishcast.legal_acceptance, fishcast.location (Treasure Island FL), fishcast.user_id=TEST_user_playwright, fishcast.units toggled metric↔imperial.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All three reported bugs fixed and verified. No outstanding blockers. server.py compute_fishing_score is clean (lines 229-388). distKm() in src/units.ts handles all km↔mi formatting for hotspot list. EXPO_PUBLIC_BACKEND_URL is canonical. New contributor for coastal now has 9 entries instead of 8 (added 'swell').",
+  "rca_of_issue": "All three issues from iteration_3 are now resolved: (a) swell weight added to both weights branches (no-tide swell:0.0 with boost to 0.10, with-tide swell:0.08); (b) duplicate dead block (~110 lines) deleted; (c) hotspots.tsx already correctly uses distKm(item.distance_km, units) — units.ts:77-78 renders proper km/mi suffixes. Verified end-to-end via pytest (18/18) + Playwright (metric+imperial distance strings)."
+}
