@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 
 import { useUnits, UnitSystem } from "@/src/units";
 import { api, getOrCreateUserId } from "@/src/api";
+import { useAuth } from "@/src/auth";
 import { COLORS, RADIUS, SPACING, TYPE } from "@/src/theme";
 
 const PREFS_KEY = "fishcast.prefs";
@@ -19,6 +20,7 @@ const STYLES = ["Shore", "Kayak", "Boat", "Offshore", "Freshwater", "Saltwater"]
 export default function SettingsScreen() {
   const router = useRouter();
   const { units, setUnits } = useUnits();
+  const { user } = useAuth();
   const [prefs, setPrefs] = useState<Prefs>({ fishing_style: [], favorite_species: "" });
   const [voucher, setVoucher] = useState("");
   const [voucherMsg, setVoucherMsg] = useState("");
@@ -104,6 +106,32 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: SPACING.lg, gap: SPACING.xl, paddingBottom: SPACING.xxxl }}>
+        <View>
+          <Text style={styles.sectionLabel}>ACCOUNT</Text>
+          <Pressable
+            testID="account-row"
+            style={styles.accountRow}
+            onPress={() => router.push(user ? "/account" : "/login")}
+          >
+            <View style={styles.accountAvatar}>
+              <Ionicons
+                name={user ? "person" : "person-add-outline"}
+                size={20}
+                color={user ? COLORS.onBrandPrimary : COLORS.brand}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.accountTitle}>
+                {user ? (user.name || "Angler") : "Sign in or create account"}
+              </Text>
+              <Text style={styles.accountSub}>
+                {user ? user.email : "Sync your spots & catches across devices"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+          </Pressable>
+        </View>
+
         <View>
           <Text style={styles.sectionLabel}>UNITS</Text>
           <View style={styles.segment}>
@@ -262,4 +290,15 @@ const styles = StyleSheet.create({
     marginTop: SPACING.sm,
   },
   dataBtnText: { fontSize: TYPE.base, fontWeight: "700", color: COLORS.brand },
+  accountRow: {
+    flexDirection: "row", alignItems: "center", gap: SPACING.md,
+    backgroundColor: COLORS.surfaceSecondary, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: RADIUS.md, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
+  },
+  accountAvatar: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: COLORS.brandTertiary, alignItems: "center", justifyContent: "center",
+  },
+  accountTitle: { color: COLORS.onSurface, fontSize: TYPE.lg, fontWeight: "700" },
+  accountSub: { color: COLORS.textMuted, fontSize: TYPE.sm, marginTop: 2 },
 });

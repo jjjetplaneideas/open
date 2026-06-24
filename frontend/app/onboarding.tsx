@@ -13,6 +13,8 @@ import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 
 import { CURRENT_LEGAL, LEGAL_DOCS, setLegalAcceptance, needsLegalAcceptance } from "@/src/legal";
+import { AnglerjMark } from "@/src/components/AnglerjMark";
+import { AnglerjWordmark } from "@/src/components/AnglerjWordmark";
 import { COLORS, RADIUS, SPACING, TYPE } from "@/src/theme";
 
 export default function OnboardingScreen() {
@@ -48,11 +50,13 @@ export default function OnboardingScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.surface }}>
       <ScrollView contentContainerStyle={{ padding: SPACING.lg, paddingBottom: 120 }}>
         <View style={styles.heroIconWrap}>
-          <Ionicons name="fish" size={48} color={COLORS.brand} />
+          <AnglerjMark size={68} />
         </View>
-        <Text style={styles.title}>Welcome to Anglerj</Text>
+        <View style={{ alignItems: "center", marginBottom: 4 }}>
+          <AnglerjWordmark height={42} showTagline />
+        </View>
         <Text style={styles.subtitle}>
-          Smarter decisions. More bites. Forecasts, conditions, almanac, and safety in one place.
+          Forecasts, conditions, almanac, and safety in one place.
         </Text>
 
         <Text style={styles.sectionLabel}>BEFORE WE START</Text>

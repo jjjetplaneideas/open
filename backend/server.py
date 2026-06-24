@@ -1510,6 +1510,28 @@ async def delete_catch(catch_id: str, user_id: str):
 
 app.include_router(api_router)
 
+# === Auth router (modular) ===
+from routes.auth import router as auth_router, set_db as _auth_set_db  # noqa: E402
+_auth_set_db(db)
+api_router_auth = APIRouter(prefix="/api")
+api_router_auth.include_router(auth_router)
+app.include_router(api_router_auth)
+
+
+@app.on_event("startup")
+async def _ensure_indexes():
+    try:
+        await db.users.create_index("email", unique=True)
+        await db.users.create_index("user_id", unique=True)
+        await db.users.create_index("apple_user_id", sparse=True)
+        await db.users.create_index("google_user_id", sparse=True)
+        await db.spots.create_index("user_id")
+        await db.catches.create_index("user_id")
+    except Exception as _e:
+        # Index creation is best-effort; existing indexes are fine
+        pass
+
+
 app.add_middleware(
     CORSMiddleware, allow_credentials=True, allow_origins=["*"],
     allow_methods=["*"], allow_headers=["*"],

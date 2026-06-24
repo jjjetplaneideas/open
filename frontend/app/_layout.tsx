@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
+import { AuthProvider } from "@/src/auth";
 
 
 // Disable logbox errors etc so that users can see the app
@@ -34,18 +35,23 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
-          <Stack.Screen name="location" options={{ presentation: "modal" }} />
-          <Stack.Screen name="spots" options={{ presentation: "modal" }} />
-          <Stack.Screen name="add-catch" options={{ presentation: "modal" }} />
-          <Stack.Screen name="settings" options={{ presentation: "modal" }} />
-          <Stack.Screen name="map-picker" options={{ presentation: "modal" }} />
-          <Stack.Screen name="regulations" options={{ presentation: "modal" }} />
-          <Stack.Screen name="hotspots" options={{ presentation: "modal" }} />
-          <Stack.Screen name="analytics" options={{ presentation: "modal" }} />
-        </Stack>
+        <AuthProvider>
+          <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
+            <Stack.Screen name="location" options={{ presentation: "modal" }} />
+            <Stack.Screen name="spots" options={{ presentation: "modal" }} />
+            <Stack.Screen name="add-catch" options={{ presentation: "modal" }} />
+            <Stack.Screen name="settings" options={{ presentation: "modal" }} />
+            <Stack.Screen name="map-picker" options={{ presentation: "modal" }} />
+            <Stack.Screen name="regulations" options={{ presentation: "modal" }} />
+            <Stack.Screen name="hotspots" options={{ presentation: "modal" }} />
+            <Stack.Screen name="analytics" options={{ presentation: "modal" }} />
+            <Stack.Screen name="login" options={{ presentation: "modal", gestureEnabled: true }} />
+            <Stack.Screen name="register" options={{ presentation: "modal", gestureEnabled: true }} />
+            <Stack.Screen name="account" options={{ presentation: "modal" }} />
+          </Stack>
+        </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
