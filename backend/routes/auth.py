@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 from typing import Optional
+import asyncio
 import httpx
 import jwt as pyjwt
 from datetime import datetime, timezone
@@ -12,6 +13,92 @@ from utils.security import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys"
+APPLE_ISSUER = "https://appleid.apple.com"
+_apple_jwks_cache: dict = {"keys": None, "fetched_at": 0.0}
+_apple_jwks_lock = asyncio.Lock()
+
+
+async def _get_apple_jwks() -> list:
+    """Fetch & cache Apple's JWKS (rotated infrequently)."""
+    import time
+    now = time.time()
+    if _apple_jwks_cache["keys"] and (now - _apple_jwks_cache["fetched_at"]) < 3600:
+        return _apple_jwks_cache["keys"]
+    async with _apple_jwks_lock:
+        if _apple_jwks_cache["keys"] and (now - _apple_jwks_cache["fetched_at"]) < 3600:
+            return _apple_jwks_cache["keys"]
+        try:
+            async with httpx.AsyncClient(timeout=10) as cx:
+                r = await cx.get(APPLE_JWKS_URL)
+                r.raise_for_status()
+                data = r.json()
+                _apple_jwks_cache["keys"] = data.get("keys") or []
+                _apple_jwks_cache["fetched_at"] = now
+        except Exception:
+            # If we can't reach Apple, fall back to last cached keys (may be empty)
+            pass
+        return _apple_jwks_cache["keys"] or []
+
+
+async def _verify_apple_identity_token(identity_token: str) -> dict:
+    """Verify the Apple ID identity token against Apple's JWKS.
+
+    Returns the verified token claims dict.
+    Raises HTTPException(400/401) on verification failure.
+
+    NOTE for staging: when APPLE_BUNDLE_ID is unset we still verify signature +
+    issuer + expiry but skip audience checking so this works for dev builds.
+    Set APPLE_BUNDLE_ID in backend .env for production hardening.
+    """
+    import os
+    try:
+        unverified_header = pyjwt.get_unverified_header(identity_token)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Malformed Apple identity token: {e}")
+    kid = unverified_header.get("kid")
+    if not kid:
+        raise HTTPException(status_code=400, detail="Apple identity token missing kid")
+    keys = await _get_apple_jwks()
+    if not keys:
+        # If we have NEVER been able to fetch JWKS, fail closed in production but
+        # allow staging by decoding unverified — surfaced clearly in logs.
+        if os.environ.get("ALLOW_UNVERIFIED_APPLE_TOKENS") == "1":
+            return pyjwt.decode(identity_token, options={"verify_signature": False})
+        raise HTTPException(status_code=502, detail="Apple JWKS unavailable; cannot verify identity token")
+    jwk = next((k for k in keys if k.get("kid") == kid), None)
+    if not jwk:
+        # Force refresh once in case keys rotated
+        _apple_jwks_cache["keys"] = None
+        keys = await _get_apple_jwks()
+        jwk = next((k for k in keys if k.get("kid") == kid), None)
+        if not jwk:
+            raise HTTPException(status_code=401, detail="Apple JWKS did not contain matching key")
+
+    try:
+        public_key = pyjwt.algorithms.RSAAlgorithm.from_jwk(jwk)
+        audience = os.environ.get("APPLE_BUNDLE_ID") or None
+        options = {"verify_aud": bool(audience)}
+        claims = pyjwt.decode(
+            identity_token,
+            public_key,
+            algorithms=["RS256"],
+            issuer=APPLE_ISSUER,
+            audience=audience,
+            options=options,
+        )
+        return claims
+    except pyjwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Apple identity token expired")
+    except pyjwt.InvalidIssuerError:
+        raise HTTPException(status_code=401, detail="Apple identity token has wrong issuer")
+    except pyjwt.InvalidAudienceError:
+        raise HTTPException(status_code=401, detail="Apple identity token audience mismatch")
+    except pyjwt.InvalidSignatureError:
+        raise HTTPException(status_code=401, detail="Apple identity token signature invalid")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Apple identity token verification failed: {e}")
 
 # These will be wired by server.py via dependency injection trick
 _DB = None
@@ -106,18 +193,15 @@ async def login(payload: LoginIn):
 
 @router.post("/apple", response_model=AuthResponse)
 async def apple_signin(payload: AppleIn):
-    """Apple Sign-In. We decode the identity token (without RS256 verification for MVP)
-    to extract sub/email. NOTE: For production, verify against Apple's JWKS.
+    """Apple Sign-In. Verifies the identity token against Apple's JWKS
+    (RS256 signature + issuer + expiry + optional audience) before trusting
+    the claims.
     """
     db = get_db()
-    # Decode without signature verification (Apple's JWKS verification is a TODO for production hardening)
-    try:
-        unverified = pyjwt.decode(payload.identity_token, options={"verify_signature": False})
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid Apple identity token: {e}")
+    claims = await _verify_apple_identity_token(payload.identity_token)
 
-    apple_sub = unverified.get("sub") or payload.apple_user_id
-    apple_email = unverified.get("email") or payload.email
+    apple_sub = claims.get("sub") or payload.apple_user_id
+    apple_email = claims.get("email") or payload.email
     if not apple_sub:
         raise HTTPException(status_code=400, detail="Apple identity token missing sub")
 

@@ -24,7 +24,7 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-FishCast = "FishCast"  # legacy name retained in code paths
+APP_NAME = "Anglerj"  # canonical app name (was "FishCast" in pre-rebrand code)
 APP_NAME = "Anglerj"
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 
@@ -644,7 +644,7 @@ async def reverse_geocode(lat: float, lon: float):
                     "lat": lat, "lon": lon, "format": "jsonv2",
                     "zoom": 14, "addressdetails": 1,
                 },
-                headers={"User-Agent": "FishCast/1.0 (fishing-forecast-app)"},
+                headers={"User-Agent": "Anglerj/1.0 (fishing-forecast-app)"},
             )
             if r.status_code == 200:
                 data = r.json()
@@ -807,6 +807,80 @@ async def forecast(lat: float, lon: float):
     # Best fishing window today: pick the hour with best conditions
     best_window = compute_best_window(hourly, moon_now, sunrise_today, sunset_today)
 
+    # === Data freshness block (V1 spec) ===
+    # Open-Meteo refreshes weather data hourly, marine roughly hourly. We report
+    # the timestamps the client can show in the dashboard ribbon, plus a coarse
+    # status (live / delayed / stale / unavailable) so the UI can downgrade
+    # confidence visually when data ages.
+    now_utc = datetime.now(timezone.utc)
+    weather_last_iso = current.get("time")  # Open-Meteo current-time observation
+    try:
+        weather_last_dt = datetime.fromisoformat(weather_last_iso) if weather_last_iso else now_utc
+        if weather_last_dt.tzinfo is None:
+            weather_last_dt = weather_last_dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        weather_last_dt = now_utc
+    age_minutes = max(0, int((now_utc - weather_last_dt).total_seconds() // 60))
+    if data is None:
+        weather_status = "unavailable"
+    elif age_minutes < 20:
+        weather_status = "live"
+    elif age_minutes < 60:
+        weather_status = "delayed"
+    else:
+        weather_status = "stale"
+
+    # Marine refreshes hourly too; if marine fetch failed it's None
+    marine_status = "unavailable" if marine is None else weather_status
+
+    next_refresh = (now_utc.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)).isoformat()
+
+    freshness = {
+        "now": now_utc.isoformat(),
+        "weather": {
+            "last_updated": weather_last_dt.isoformat(),
+            "next_refresh": next_refresh,
+            "age_minutes": age_minutes,
+            "status": weather_status,
+        },
+        "tide": {
+            "last_calculated": now_utc.isoformat(),
+            "next_refresh": next_refresh,
+            "status": marine_status if tide is not None else "unavailable",
+        },
+        "swell": {
+            "last_updated": now_utc.isoformat(),
+            "next_refresh": next_refresh,
+            "status": marine_status if swell is not None else "unavailable",
+        },
+        "moon_solunar": {
+            "generated_at": now_utc.isoformat(),
+            "status": "live",  # purely computed locally with ephem
+        },
+        "anglerjai": {
+            "generated_at": now_utc.isoformat(),
+            "status": "live",
+        },
+        "conditions_timestamp": weather_last_dt.isoformat(),
+        # Overall systems status: worst of weather + tide
+        "overall_status": (
+            "unavailable" if "unavailable" in (weather_status, marine_status) else
+            "stale" if "stale" in (weather_status, marine_status) else
+            "delayed" if "delayed" in (weather_status, marine_status) else
+            "live"
+        ),
+    }
+
+    # Confidence downgrade for stale data — feed back into the existing confidence object
+    if freshness["overall_status"] == "stale":
+        confidence["score"] = max(0, int(confidence.get("score", 70)) - 20)
+        confidence["label"] = "Reduced — data older than 1h"
+    elif freshness["overall_status"] == "delayed":
+        confidence["score"] = max(0, int(confidence.get("score", 70)) - 10)
+    elif freshness["overall_status"] == "unavailable":
+        confidence["score"] = max(0, int(confidence.get("score", 70)) - 30)
+        confidence["label"] = "Limited — some data sources unavailable"
+
     return {
         "location": {"lat": lat, "lon": lon, "timezone": data.get("timezone")},
         "current": {
@@ -832,6 +906,7 @@ async def forecast(lat: float, lon: float):
         "today_score": today_score,
         "safety": safety,
         "confidence": confidence,
+        "freshness": freshness,
         "best_window": best_window,
         "days": days,
     }
@@ -1099,7 +1174,7 @@ async def hotspots(lat: float, lon: float, radius_km: float = 8.0):
             r = await hc.post(
                 "https://overpass-api.de/api/interpreter",
                 data={"data": query},
-                headers={"User-Agent": "FishCast/1.0"},
+                headers={"User-Agent": "Anglerj/1.0"},
             )
             r.raise_for_status()
             data = r.json()

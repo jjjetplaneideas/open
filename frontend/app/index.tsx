@@ -4,6 +4,7 @@ import { ActivityIndicator, View } from "react-native";
 
 import { needsLegalAcceptance } from "@/src/legal";
 import { useAuth } from "@/src/auth";
+import { ensureLegacyKeysMigrated } from "@/src/storage-migration";
 import { COLORS } from "@/src/theme";
 
 /**
@@ -12,19 +13,19 @@ import { COLORS } from "@/src/theme";
  *   2. If authenticated OR explicit guest-mode flag  -> /(tabs)
  *   3. Otherwise (mandatory)                         -> /login
  *
- * The "Remember me" toggle on /login decides whether the access token is
- * persisted across cold-starts; if not, the AuthProvider clears the token
- * on boot and we end up back on /login next launch.
- *
- * "Continue as guest" sets a persistent flag so the guest path is sticky
- * until they explicitly Sign In or Log Out from inside the app.
+ * Also runs the one-time `fishcast.* -> anglerj.*` AsyncStorage migration
+ * before the rest of the app boots, so no user data is lost on the rename.
  */
 export default function Index() {
   const { user, isGuest, loading: authLoading } = useAuth();
   const [needsLegal, setNeedsLegal] = useState<boolean | null>(null);
 
   useEffect(() => {
-    needsLegalAcceptance().then(setNeedsLegal);
+    (async () => {
+      await ensureLegacyKeysMigrated();
+      const needs = await needsLegalAcceptance();
+      setNeedsLegal(needs);
+    })();
   }, []);
 
   if (needsLegal === null || authLoading) {

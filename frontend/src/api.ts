@@ -3,8 +3,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL || "";
 
-export const USER_ID_KEY = "fishcast.user_id";
-export const LOCATION_KEY = "fishcast.location";
+export const USER_ID_KEY = "anglerj.user_id";
+export const LOCATION_KEY = "anglerj.location";
 
 export type SavedLocation = {
   lat: number;

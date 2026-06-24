@@ -25,6 +25,7 @@ import MoonCard from "@/src/components/MoonCard";
 import SafetyBanner from "@/src/components/SafetyBanner";
 import ScoreBreakdown from "@/src/components/ScoreBreakdown";
 import HourlyBiteForecast from "@/src/components/HourlyBiteForecast";
+import FreshnessRibbon from "@/src/components/FreshnessRibbon";
 import { BASE_URL } from "@/src/api";
 
 export default function TodayScreen() {
@@ -245,15 +246,19 @@ export default function TodayScreen() {
           </View>
         </View>
 
+        {/* Data freshness ribbon */}
+        <FreshnessRibbon data={(data as any).freshness} />
+
         {/* Score breakdown */}
         <ScoreBreakdown contributors={sc.contributors || []} />
 
         {/* Plain-language explainer */}
         <View style={styles.fullCard} testID="score-explanation">
           <View style={{ flexDirection: "row", gap: SPACING.sm, alignItems: "center" }}>
-            <Ionicons name="bulb-outline" size={18} color={COLORS.brand} />
-            <Text style={styles.cardTitle}>Why is today a {sc.score}?</Text>
+            <Ionicons name="sparkles" size={16} color={COLORS.brandSecondary} />
+            <Text style={[styles.cardTitle, { color: COLORS.brandSecondary }]}>AnglerjAi Score Insight</Text>
           </View>
+          <Text style={[styles.cardCaption, { marginTop: 2 }]}>Why is today a {sc.score}?</Text>
           {loadingExplanation ? (
             <ActivityIndicator color={COLORS.brand} style={{ marginTop: SPACING.md }} />
           ) : (
@@ -284,8 +289,8 @@ export default function TodayScreen() {
         <View style={[styles.fullCard, styles.recCard]} testID="recommendation-card">
           <View style={styles.cardHeaderRow}>
             <View style={{ flexDirection: "row", gap: SPACING.sm, alignItems: "center" }}>
-              <Ionicons name="trophy-outline" size={18} color={COLORS.brand} />
-              <Text style={styles.cardTitle}>Best Bet Right Now</Text>
+              <Ionicons name="sparkles" size={16} color={COLORS.brandSecondary} />
+              <Text style={[styles.cardTitle, { color: COLORS.brandSecondary }]}>AnglerjAi Best Bet</Text>
             </View>
           </View>
           {loadingRec ? (
@@ -407,8 +412,8 @@ export default function TodayScreen() {
         {/* Almanac AI */}
         <View style={[styles.fullCard, styles.almanacCard]} testID="almanac-card">
           <View style={{ flexDirection: "row", gap: SPACING.sm, alignItems: "center" }}>
-            <Ionicons name="book-outline" size={18} color={COLORS.onBrandPrimary} />
-            <Text style={[styles.cardTitle, { color: COLORS.onBrandPrimary }]}>Local Angler Almanac</Text>
+            <Ionicons name="sparkles" size={16} color={COLORS.onBrandPrimary} />
+            <Text style={[styles.cardTitle, { color: COLORS.onBrandPrimary }]}>AnglerjAi Almanac</Text>
           </View>
           {loadingAlmanac ? (
             <ActivityIndicator color={COLORS.onBrandPrimary} style={{ marginTop: SPACING.md }} />

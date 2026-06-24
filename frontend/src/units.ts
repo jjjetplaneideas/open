@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 
 export type UnitSystem = "metric" | "imperial";
 
-export const UNITS_KEY = "fishcast.units";
+export const UNITS_KEY = "anglerj.units";
 
 // ============ STORAGE ============
 export async function getUnitSystem(): Promise<UnitSystem> {

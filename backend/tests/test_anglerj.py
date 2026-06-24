@@ -1,4 +1,4 @@
-"""Backend API tests for FishCast app (iteration 2 - new shape)."""
+"""Backend API tests for Anglerj app (iteration 2 - new shape)."""
 import os
 import time
 import pytest

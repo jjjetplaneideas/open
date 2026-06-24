@@ -99,11 +99,10 @@ export function PaywallSheet({ onClose }: Props) {
     nativeAvailable,
   } = useSubscription();
 
-  // Prefer live RC offerings, fall back to local copy so the paywall renders
-  // beautifully even before the RevenueCat dashboard is configured.
-  const monthly = offerings.monthly || { priceString: "$6.99" } as any;
-  const yearly = offerings.yearly || { priceString: "$49.99" } as any;
-  const lifetime = offerings.lifetime || { priceString: "$199" } as any;
+  // Prefer live RC offerings; fall back to the planned defaults shipped in V1.
+  const monthly = offerings.monthly || { priceString: "$4.99" } as any;
+  const yearly = offerings.yearly || { priceString: "$39.99" } as any;
+  const lifetime = offerings.lifetime || { priceString: "$99" } as any;
 
   return (
     <ScrollView

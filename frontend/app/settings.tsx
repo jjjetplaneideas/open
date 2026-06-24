@@ -12,7 +12,7 @@ import { useAuth } from "@/src/auth";
 import { useSubscription } from "@/src/subscription";
 import { COLORS, RADIUS, SPACING, TYPE } from "@/src/theme";
 
-const PREFS_KEY = "fishcast.prefs";
+const PREFS_KEY = "anglerj.prefs";
 
 type Prefs = { fishing_style: string[]; favorite_species: string };
 

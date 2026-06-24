@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const LEGAL_KEY = "fishcast.legal_acceptance";
+const LEGAL_KEY = "anglerj.legal_acceptance";
 
 export const CURRENT_LEGAL = {
   tos: "1.0.0",
