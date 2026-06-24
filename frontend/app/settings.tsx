@@ -177,9 +177,9 @@ export default function SettingsScreen() {
         <View>
           <Text style={styles.sectionLabel}>ABOUT</Text>
           <View style={styles.aboutBox}>
-            <Text style={styles.aboutTitle}>FishCast</Text>
+            <Text style={styles.aboutTitle}>Anglerj</Text>
             <Text style={styles.aboutSub}>
-              Fishing intelligence powered by Open-Meteo, marine swell data, lunar astronomy, OpenStreetMap, and Claude AI.
+              Smarter decisions. More bites. Powered by Open-Meteo, marine swell data, lunar astronomy, OpenStreetMap, and Claude AI.
             </Text>
           </View>
         </View>

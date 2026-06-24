@@ -24,6 +24,8 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
+FishCast = "FishCast"  # legacy name retained in code paths
+APP_NAME = "Anglerj"
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 
 app = FastAPI()
@@ -601,7 +603,7 @@ def extract_swell_data(marine: Optional[Dict[str, Any]]) -> Optional[Dict[str, A
 
 @api_router.get("/")
 async def root():
-    return {"message": "FishCast API"}
+    return {"message": "Anglerj API", "tagline": "Smarter Decisions. More Bites."}
 
 
 @api_router.get("/geocode")

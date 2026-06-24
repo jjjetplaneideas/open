@@ -50,9 +50,9 @@ export default function OnboardingScreen() {
         <View style={styles.heroIconWrap}>
           <Ionicons name="fish" size={48} color={COLORS.brand} />
         </View>
-        <Text style={styles.title}>Welcome to FishCast</Text>
+        <Text style={styles.title}>Welcome to Anglerj</Text>
         <Text style={styles.subtitle}>
-          Your fishing intelligence platform — forecasts, conditions, almanac, and safety in one place.
+          Smarter decisions. More bites. Forecasts, conditions, almanac, and safety in one place.
         </Text>
 
         <Text style={styles.sectionLabel}>BEFORE WE START</Text>
@@ -85,7 +85,7 @@ export default function OnboardingScreen() {
         <View style={styles.noticeBox}>
           <Ionicons name="information-circle-outline" size={18} color={COLORS.info} />
           <Text style={styles.noticeText}>
-            FishCast is informational only. Always use official charts, regulations, and your own
+            Anglerj is informational only. Always use official charts, regulations, and your own
             judgment. Conditions change rapidly — your safety is your responsibility.
           </Text>
         </View>
