@@ -16,6 +16,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BASE_URL, USER_ID_KEY, getOrCreateUserId } from "./api";
 
 const TOKEN_KEY = "anglerj.access_token";
+const REMEMBER_KEY = "anglerj.remember_me";
+const GUEST_MODE_KEY = "anglerj.guest_mode"; // "1" when user explicitly chose to continue as guest
 
 // Cross-platform secure storage abstraction
 const storage = {
@@ -79,6 +81,7 @@ export type AuthUser = {
 export type AuthState = {
   user: AuthUser | null;
   token: string | null;
+  isGuest: boolean;
   loading: boolean; // checking session on cold start
   signingIn: boolean; // an auth action in progress
   error: string | null;
@@ -87,10 +90,11 @@ export type AuthState = {
 export type MigrateInfo = { spots: number; catches: number };
 
 export type AuthContextValue = AuthState & {
-  registerEmail: (email: string, password: string, name?: string) => Promise<MigrateInfo | null>;
-  loginEmail: (email: string, password: string) => Promise<MigrateInfo | null>;
-  loginGoogle: () => Promise<MigrateInfo | null>;
-  loginApple: () => Promise<MigrateInfo | null>;
+  registerEmail: (email: string, password: string, name?: string, rememberMe?: boolean) => Promise<MigrateInfo | null>;
+  loginEmail: (email: string, password: string, rememberMe?: boolean) => Promise<MigrateInfo | null>;
+  loginGoogle: (rememberMe?: boolean) => Promise<MigrateInfo | null>;
+  loginApple: (rememberMe?: boolean) => Promise<MigrateInfo | null>;
+  enableGuestMode: () => Promise<void>;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
   clearError: () => void;
@@ -133,27 +137,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
     user: null,
     token: null,
+    isGuest: false,
     loading: true,
     signingIn: false,
     error: null,
   });
 
-  // Cold-start session restore
+  // Cold-start session restore (honors "remember me")
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const token = await storage.getItem(TOKEN_KEY);
+      const [token, remember, guest] = await Promise.all([
+        storage.getItem(TOKEN_KEY),
+        storage.getItem(REMEMBER_KEY),
+        AsyncStorage.getItem(GUEST_MODE_KEY),
+      ]);
+      const isGuest = guest === "1";
+      // If user previously chose NOT to remember, drop any lingering token
+      if (token && remember !== "1") {
+        await storage.removeItem(TOKEN_KEY);
+        if (!cancelled)
+          setState({ user: null, token: null, isGuest, loading: false, signingIn: false, error: null });
+        return;
+      }
       if (!token) {
-        if (!cancelled) setState((s) => ({ ...s, loading: false }));
+        if (!cancelled) setState((s) => ({ ...s, isGuest, loading: false }));
         return;
       }
       try {
         const user = await apiGet<AuthUser>("/auth/me", token);
-        if (!cancelled) setState({ user, token, loading: false, signingIn: false, error: null });
+        if (!cancelled) setState({ user, token, isGuest: false, loading: false, signingIn: false, error: null });
       } catch {
         await storage.removeItem(TOKEN_KEY);
         if (!cancelled)
-          setState({ user: null, token: null, loading: false, signingIn: false, error: null });
+          setState({ user: null, token: null, isGuest, loading: false, signingIn: false, error: null });
       }
     })();
     return () => {
@@ -161,19 +178,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const persistSession = useCallback(async (token: string, user: AuthUser) => {
+  const persistSession = useCallback(async (token: string, user: AuthUser, rememberMe: boolean) => {
     await storage.setItem(TOKEN_KEY, token);
+    await storage.setItem(REMEMBER_KEY, rememberMe ? "1" : "0");
+    // Authenticated users are not guests
+    await AsyncStorage.removeItem(GUEST_MODE_KEY);
     // Replace guest user_id with authenticated user_id so legacy code that reads
     // USER_ID_KEY (spots / catches list etc.) keeps working seamlessly.
     await AsyncStorage.setItem(USER_ID_KEY, user.user_id);
   }, []);
 
   const handleAuthResponse = useCallback(
-    async (resp: { access_token: string; user: AuthUser; migrated?: MigrateInfo }) => {
-      await persistSession(resp.access_token, resp.user);
+    async (
+      resp: { access_token: string; user: AuthUser; migrated?: MigrateInfo },
+      rememberMe: boolean,
+    ) => {
+      await persistSession(resp.access_token, resp.user, rememberMe);
       setState({
         user: resp.user,
         token: resp.access_token,
+        isGuest: false,
         loading: false,
         signingIn: false,
         error: null,
@@ -184,7 +208,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const registerEmail = useCallback(
-    async (email: string, password: string, name?: string) => {
+    async (email: string, password: string, name?: string, rememberMe: boolean = true) => {
       setState((s) => ({ ...s, signingIn: true, error: null }));
       try {
         const guest_user_id = await getOrCreateUserId();
@@ -192,7 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           "/auth/register",
           { email: email.trim().toLowerCase(), password, name, guest_user_id },
         );
-        return await handleAuthResponse(resp);
+        return await handleAuthResponse(resp, rememberMe);
       } catch (e: any) {
         setState((s) => ({ ...s, signingIn: false, error: e?.message || "Sign up failed" }));
         throw e;
@@ -202,7 +226,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const loginEmail = useCallback(
-    async (email: string, password: string) => {
+    async (email: string, password: string, rememberMe: boolean = true) => {
       setState((s) => ({ ...s, signingIn: true, error: null }));
       try {
         const guest_user_id = await getOrCreateUserId();
@@ -210,7 +234,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           "/auth/login",
           { email: email.trim().toLowerCase(), password, guest_user_id },
         );
-        return await handleAuthResponse(resp);
+        return await handleAuthResponse(resp, rememberMe);
       } catch (e: any) {
         setState((s) => ({ ...s, signingIn: false, error: e?.message || "Sign in failed" }));
         throw e;
@@ -219,15 +243,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [handleAuthResponse],
   );
 
-  const loginGoogle = useCallback(async () => {
+  const loginGoogle = useCallback(async (rememberMe: boolean = true) => {
     setState((s) => ({ ...s, signingIn: true, error: null }));
     try {
       const guest_user_id = await getOrCreateUserId();
       let sessionId: string | null = null;
 
       if (Platform.OS === "web") {
-        // Web: redirect to Emergent Auth, then on return parse session_id from URL.
-        // First check if we already have one in the URL (callback flow)
         if (typeof window !== "undefined") {
           const hash = window.location.hash || "";
           const search = window.location.search || "";
@@ -238,9 +260,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!sessionId) {
             const redirectUrl = window.location.origin + "/login";
             window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
-            return null; // Browser is navigating away
+            return null;
           }
-          // Clean URL fragment / query
           window.history.replaceState(null, "", window.location.pathname);
         }
       } else {
@@ -261,20 +282,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         "/auth/google",
         { session_id: sessionId, guest_user_id },
       );
-      return await handleAuthResponse(resp);
+      return await handleAuthResponse(resp, rememberMe);
     } catch (e: any) {
       setState((s) => ({ ...s, signingIn: false, error: e?.message || "Google sign-in failed" }));
       throw e;
     }
   }, [handleAuthResponse]);
 
-  const loginApple = useCallback(async () => {
+  const loginApple = useCallback(async (rememberMe: boolean = true) => {
     setState((s) => ({ ...s, signingIn: true, error: null }));
     try {
       if (Platform.OS !== "ios") {
         throw new Error("Apple Sign-In is only available on iOS");
       }
-      // Lazy import so web/android bundles don't crash on missing native module
       const AppleAuth = await import("expo-apple-authentication");
       const available = await AppleAuth.isAvailableAsync();
       if (!available) throw new Error("Apple Sign-In not available on this device");
@@ -298,9 +318,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           guest_user_id,
         },
       );
-      return await handleAuthResponse(resp);
+      return await handleAuthResponse(resp, rememberMe);
     } catch (e: any) {
-      // User canceled — don't treat as error noise
       const msg = e?.message || "Apple sign-in failed";
       if (/canceled|ERR_CANCEL/i.test(msg)) {
         setState((s) => ({ ...s, signingIn: false, error: null }));
@@ -310,6 +329,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw e;
     }
   }, [handleAuthResponse]);
+
+  const enableGuestMode = useCallback(async () => {
+    await AsyncStorage.setItem(GUEST_MODE_KEY, "1");
+    setState((s) => ({ ...s, isGuest: true, error: null }));
+  }, []);
 
   const refreshMe = useCallback(async () => {
     if (!state.token) return;
@@ -333,9 +357,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
     await storage.removeItem(TOKEN_KEY);
+    await storage.removeItem(REMEMBER_KEY);
     // Reset guest user id so the user starts fresh next time
     await AsyncStorage.removeItem(USER_ID_KEY);
-    setState({ user: null, token: null, loading: false, signingIn: false, error: null });
+    await AsyncStorage.removeItem(GUEST_MODE_KEY);
+    setState({ user: null, token: null, isGuest: false, loading: false, signingIn: false, error: null });
   }, [state.token]);
 
   const clearError = useCallback(() => setState((s) => ({ ...s, error: null })), []);
@@ -347,11 +373,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginEmail,
       loginGoogle,
       loginApple,
+      enableGuestMode,
       logout,
       refreshMe,
       clearError,
     }),
-    [state, registerEmail, loginEmail, loginGoogle, loginApple, logout, refreshMe, clearError],
+    [state, registerEmail, loginEmail, loginGoogle, loginApple, enableGuestMode, logout, refreshMe, clearError],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

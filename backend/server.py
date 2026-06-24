@@ -1512,9 +1512,12 @@ app.include_router(api_router)
 
 # === Auth router (modular) ===
 from routes.auth import router as auth_router, set_db as _auth_set_db  # noqa: E402
+from routes.subscriptions import router as subs_router, set_db as _subs_set_db  # noqa: E402
 _auth_set_db(db)
+_subs_set_db(db)
 api_router_auth = APIRouter(prefix="/api")
 api_router_auth.include_router(auth_router)
+api_router_auth.include_router(subs_router)
 app.include_router(api_router_auth)
 
 

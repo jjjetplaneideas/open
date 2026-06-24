@@ -23,9 +23,10 @@ import { COLORS, RADIUS, SPACING, TYPE } from "@/src/theme";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { loginEmail, loginGoogle, loginApple, signingIn, error, clearError, user } = useAuth();
+  const { loginEmail, loginGoogle, loginApple, enableGuestMode, signingIn, error, clearError, user } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [appleAvailable, setAppleAvailable] = useState(false);
 
   useEffect(() => {
@@ -74,7 +75,7 @@ export default function LoginScreen() {
       return;
     }
     try {
-      const m = await loginEmail(email, password);
+      const m = await loginEmail(email, password, rememberMe);
       if (m && (m.spots > 0 || m.catches > 0)) {
         Alert.alert(
           "Welcome back!",
@@ -90,7 +91,7 @@ export default function LoginScreen() {
   const onGoogle = useCallback(async () => {
     clearError();
     try {
-      const m = await loginGoogle();
+      const m = await loginGoogle(rememberMe);
       if (m == null) return;
       if (m.spots > 0 || m.catches > 0) {
         Alert.alert(
@@ -107,7 +108,7 @@ export default function LoginScreen() {
   const onApple = useCallback(async () => {
     clearError();
     try {
-      const m = await loginApple();
+      const m = await loginApple(rememberMe);
       if (m == null) return;
       router.replace("/(tabs)");
     } catch {
@@ -180,6 +181,20 @@ export default function LoginScreen() {
               style={{ marginTop: SPACING.lg }}
             />
 
+            <Pressable
+              testID="remember-me-row"
+              style={styles.rememberRow}
+              onPress={() => setRememberMe((v) => !v)}
+              hitSlop={6}
+            >
+              <View style={[styles.checkbox, rememberMe && styles.checkboxOn]}>
+                {rememberMe ? (
+                  <Ionicons name="checkmark" size={14} color={COLORS.onBrandPrimary} />
+                ) : null}
+              </View>
+              <Text style={styles.rememberText}>Remember me on this device</Text>
+            </Pressable>
+
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
               <Text style={styles.dividerText}>or continue with</Text>
@@ -221,9 +236,12 @@ export default function LoginScreen() {
             <Pressable
               testID="continue-as-guest"
               style={styles.guestBtn}
-              onPress={() => router.replace("/(tabs)")}
+              onPress={async () => {
+                await enableGuestMode();
+                router.replace("/(tabs)");
+              }}
             >
-              <Text style={styles.guestText}>Continue as guest</Text>
+              <Text style={styles.guestText}>Continue as guest (ads-supported)</Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -291,4 +309,23 @@ const styles = StyleSheet.create({
   linkAccent: { color: COLORS.brand, fontWeight: "700" },
   guestBtn: { alignItems: "center", paddingVertical: SPACING.md },
   guestText: { color: COLORS.brand, fontSize: TYPE.base, textDecorationLine: "underline" },
+  rememberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    alignSelf: "center",
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: COLORS.borderBlue,
+    backgroundColor: COLORS.surfaceSecondary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxOn: { backgroundColor: COLORS.brand, borderColor: COLORS.brand },
+  rememberText: { color: COLORS.textMuted, fontSize: TYPE.base },
 });

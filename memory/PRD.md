@@ -1,53 +1,63 @@
 # Anglerj — Product Requirements & Progress
 
 ## Vision
-A complete fishing-decision engine that turns weather, tides, swell, moon/solunar, and barometric pressure into a dynamic "Fishing Score" with AI-generated species recommendations, safety alerts, and daily reports.
+Complete fishing-decision engine turning weather, tides, swell, moon/solunar, pressure into a dynamic Fishing Score with AnglerjAi recommendations, safety alerts, and daily reports.
 
-## Current Status (June 2026)
-Production-track MVP. Dark-mode native iOS/Android app via Expo Router, FastAPI backend, MongoDB.
+## Branding
+- App: **Anglerj** (always lowercase "anglerj" in wordmark, hook-J as the icon)
+- AI sub-brand: **AnglerjAi** (NEVER `AnglerjAI`) — the intelligence layer inside Anglerj
+- Tagline: SMARTER DECISIONS. MORE BITES.
+- Tiers: **Free**, **Anglerj Pro** (monthly + yearly), **Anglerj Founder** (lifetime)
 
 ## Completed
-- Core forecasting engine (Open-Meteo, ephem, OSM, Nominatim) with score, safety, confidence
-- 24-hour bite forecast, tide & swell charts, animated live conditions
-- Catch journal, saved spots, hotspots discovery (OSM Overpass)
-- AI: species recommendations, score explanations, almanac, daily report (Emergent LLM)
-- Onboarding legal flow (ToS / Privacy / Liability waiver), Regulations Center
-- Map picker (Leaflet WebView with native + web fallback)
-- Catch analytics dashboard
-- Visual brand rebrand to "Anglerj" + dark-mode default + official logo assets (hook-J)
-- **Authentication (June 2026 session)**:
-  - Email/Password (JWT, bcrypt) — `/api/auth/register`, `/api/auth/login`
-  - Apple Sign-In via `expo-apple-authentication` (iOS dev build required)
-  - Google Sign-In via Emergent Google Auth proxy
-  - Logout, `GET /api/auth/me`, guest-data migration on first sign-in
-  - AuthProvider context (loading / authed / unauthed states)
-  - Login / Register / Account screens with brand-aligned UI
-  - Tokens stored in `expo-secure-store` (mobile) / `localStorage` (web)
-  - 23/23 backend auth tests passing (pytest)
+- Forecasting engine, charts, hotspots, catch journal, AI surfaces, onboarding/legal, regulations center, dark-mode rebrand
+- Auth (Email/Password JWT, Google via Emergent, Apple Sign-In) + guest migration
+- Brand assets: official `anglerj_icon.png`, `anglerj_wordmark.png`, `anglerj_wordmark_tagline.png`, `anglerj_full.png`
+- Design system tokens applied to auth screens (Deep Ocean bg, BrandInput, GradientButton, TaglineBar)
+- **RevenueCat (June 2026 session)**:
+  - `react-native-purchases` + `react-native-purchases-ui` installed
+  - `SubscriptionProvider` with graceful fallback for web / Expo Go
+  - 3 entitlements: `pro`, `founder` + 3 products: `monthly`, `yearly`, `lifetime`
+  - Anglerj-branded `/paywall` screen with PaywallSheet (kicker, hero, tagline pill, feature list, 3 tier cards, restore button)
+  - Restore Purchases (Settings + Paywall) and Customer Center entry points
+  - Backend `POST /api/subscriptions/webhook` + `GET /api/subscriptions/me`
+  - Subscription status surfaced in Settings → Subscription row
+  - `usePremium()` and `useSubscription()` hooks for clean gating
+- **Auth flow rework**:
+  - Routing: legal? → `/onboarding` ; auth or guest? → `/(tabs)` ; else → `/login`
+  - Login mandatory on launch (no token, no guest flag)
+  - "Remember me" toggle persists token across cold-starts; unchecked clears token on next boot
+  - "Continue as guest (ads-supported)" sets sticky guest flag
 
 ## Pending P0
-- RevenueCat subscription integration (monthly / yearly / lifetime; entitlement "Anglerj")
-  - User-provided key: `test_RRJiTfnoKRFsvaTyVSZVyHXFCnX`
-  - Use `react-native-purchases` SDK (Expo native deps; dev build required)
-- AdMob free-tier ads (user pub ID: `pub-1411683747413283`, inactive — use Google test IDs for now)
-- Relational DB schema migration (Users, Spots, Catches, LegalAcceptances, AnglerjAiCache with UUIDs)
+- **AdMob (free-tier banners + interstitials)**
+  - User publisher: `pub-1411683747413283` (inactive — use Google test IDs)
+  - Free + guest users see ads; Pro/Founder bypass
+- Wire **premium gating** into specific AI endpoints (currently only surfaced via UI label; backend allows all)
+- Relational DB schema migration (Users, Spots, Catches, LegalAcceptances, AnglerjAiCache UUIDs)
 
 ## Pending P1
-- Backend modularization (server.py is 1525 lines — split into routes/, services/)
-- Secure License Vault (FaceID/TouchID protected document storage)
+- System-wide design system propagation (settings, account, onboarding, dashboard cards)
+- Hotspots map view (numbered pins + GPS marker)
+- Fish directory expansion (all aquatic species + bait)
+- "Best Bet" → "Best Play"; almanac under Best Play
+- Backend modularization (split 1525-line `server.py`)
+- Secure License Vault (FaceID/TouchID)
 - Web Admin Dashboard
-- Push notifications (bite windows, tide changes)
+- Push notifications
 
-## Pending P2
-- Social profiles, crew sharing, photo fish ID
+## Native build / dashboard setup required for RevenueCat
+- iOS App Store Connect: create products `monthly`, `yearly`, `lifetime` linked to the Anglerj bundle
+- Google Play Console: create matching subscription/in-app products
+- RevenueCat dashboard:
+  - Create iOS and Android apps with matching bundle IDs
+  - Map products to entitlements: monthly + yearly → `pro`; lifetime → `founder` (additionally grant `pro`)
+  - Create Offering with the three packages
+  - Configure webhook → `https://<host>/api/subscriptions/webhook` with shared `Authorization` header set in backend `.env` as `REVENUECAT_WEBHOOK_AUTH_SECRET`
+  - Set `REVENUECAT_SECRET_API_KEY` (secret REST key) in backend `.env`
+- EAS Dev/Production build required: `react-native-purchases` cannot run on Expo Go or web
+- `EXPO_PUBLIC_REVENUECAT_IOS_KEY` / `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` already set with sandbox key `test_RRJiTfnoKRFsvaTyVSZVyHXFCnX` (replace per platform in prod)
 
-## Files of Note
-- `/app/backend/server.py` — main app + forecast/AI/spots/catches/hotspots endpoints
-- `/app/backend/routes/auth.py` — auth endpoints
-- `/app/backend/models/user.py` — User pydantic models
-- `/app/backend/utils/security.py` — JWT, bcrypt, current-user helper
-- `/app/backend/tests/test_auth.py` — 23 auth tests
-- `/app/frontend/src/auth.tsx` — AuthProvider context
-- `/app/frontend/src/components/AnglerjMark.tsx` & `AnglerjWordmark.tsx` — brand components
-- `/app/frontend/assets/images/anglerj_{icon,wordmark,wordmark_tagline,full}.png` — official logo assets
-- `/app/frontend/app/{login,register,account}.tsx` — auth screens
+## Files of note (this session)
+- Backend: `/app/backend/routes/subscriptions.py`
+- Frontend: `/app/frontend/src/subscription.tsx`, `/app/frontend/src/components/PaywallSheet.tsx`, `/app/frontend/app/paywall.tsx`, `/app/frontend/app/index.tsx` (routing), `/app/frontend/src/auth.tsx` (rememberMe + guest mode), `/app/frontend/app/login.tsx` (Remember me toggle + guest CTA)

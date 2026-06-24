@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { useUnits, UnitSystem } from "@/src/units";
 import { api, getOrCreateUserId } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { useSubscription } from "@/src/subscription";
 import { COLORS, RADIUS, SPACING, TYPE } from "@/src/theme";
 
 const PREFS_KEY = "fishcast.prefs";
@@ -21,6 +22,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { units, setUnits } = useUnits();
   const { user } = useAuth();
+  const { tier, isPremium, presentCustomerCenter, restore, nativeAvailable } = useSubscription();
   const [prefs, setPrefs] = useState<Prefs>({ fishing_style: [], favorite_species: "" });
   const [voucher, setVoucher] = useState("");
   const [voucherMsg, setVoucherMsg] = useState("");
@@ -130,6 +132,54 @@ export default function SettingsScreen() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
           </Pressable>
+        </View>
+
+        <View>
+          <Text style={styles.sectionLabel}>SUBSCRIPTION</Text>
+          <Pressable
+            testID="subscription-row"
+            style={styles.accountRow}
+            onPress={() => (isPremium ? presentCustomerCenter() : router.push("/paywall"))}
+          >
+            <View
+              style={[
+                styles.accountAvatar,
+                { backgroundColor: isPremium ? COLORS.brandSecondary : COLORS.brandTertiary },
+              ]}
+            >
+              <Ionicons
+                name={isPremium ? "star" : "sparkles-outline"}
+                size={20}
+                color={isPremium ? COLORS.onSurface : COLORS.brand}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.accountTitle}>
+                {tier === "founder"
+                  ? "Anglerj Founder"
+                  : tier === "pro"
+                  ? "Anglerj Pro"
+                  : "Upgrade to Anglerj Pro"}
+              </Text>
+              <Text style={styles.accountSub}>
+                {isPremium
+                  ? "Manage plan, payment, or restore purchases"
+                  : "Ad-free \u00b7 AnglerjAi unlimited \u00b7 Premium intel"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+          </Pressable>
+          {!nativeAvailable ? (
+            <Text style={styles.subNote}>
+              In-app purchases require a development or production build. The paywall preview is
+              available on web/Expo Go.
+            </Text>
+          ) : (
+            <Pressable testID="settings-restore" onPress={restore} style={styles.restoreInline}>
+              <Ionicons name="refresh" size={14} color={COLORS.brand} />
+              <Text style={styles.restoreInlineText}>Restore Purchases</Text>
+            </Pressable>
+          )}
         </View>
 
         <View>
@@ -301,4 +351,20 @@ const styles = StyleSheet.create({
   },
   accountTitle: { color: COLORS.onSurface, fontSize: TYPE.lg, fontWeight: "700" },
   accountSub: { color: COLORS.textMuted, fontSize: TYPE.sm, marginTop: 2 },
+  subNote: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    marginTop: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
+    fontStyle: "italic",
+  },
+  restoreInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: SPACING.sm,
+    alignSelf: "flex-start",
+    paddingHorizontal: SPACING.sm,
+  },
+  restoreInlineText: { color: COLORS.brand, fontWeight: "700", fontSize: TYPE.sm },
 });
