@@ -1,19 +1,22 @@
-// Anglerj brand tokens — dark-first palette per official brand guide.
+// Anglerj brand tokens — official design system reference.
+// Aligned to Anglerj Design System (June 2026).
 export const COLORS = {
   // Surfaces
-  surface: "#0F1620",          // app background (deeper than brand navy for contrast)
+  surface: "#050B1C",          // Deep Ocean — primary background
   onSurface: "#FFFFFF",
-  surfaceSecondary: "#1B2330", // brand navy — cards
+  surfaceSecondary: "#1B2330", // Dark Navy — cards & input fields
   surfaceTertiary: "#252E3C",  // chips, raised states
   onSurfaceTertiary: "#A7AEB8",
   surfaceInverse: "#FFFFFF",
   onSurfaceInverse: "#1B2330",
 
   // Brand
-  brand: "#1EA7FF",            // signature blue (primary)
+  brand: "#1EA7FF",            // Primary Blue
   brandPrimary: "#1EA7FF",
+  brandGradientStart: "#2FB6FF", // brighter top of gradient
+  brandGradientEnd: "#1487E5",   // darker bottom of gradient
   onBrandPrimary: "#FFFFFF",
-  brandSecondary: "#00E0C2",   // teal accent (highlights, success states)
+  brandSecondary: "#00E0C2",   // Accent Cyan — success / AI highlights
   onBrandSecondary: "#0F1620",
   brandTertiary: "#0F2A40",    // muted blue-tinted card background
   onBrandTertiary: "#9FD4FF",
@@ -28,8 +31,9 @@ export const COLORS = {
   // Lines / dividers
   border: "#2A3343",
   borderStrong: "#3B4458",
+  borderBlue: "#1B3A55",       // subtle blue-tinted border for inputs
   divider: "#252E3C",
-  textMuted: "#A7AEB8",
+  textMuted: "#A7AEB8",        // Silver — secondary text
 };
 
 export const SPACING = {

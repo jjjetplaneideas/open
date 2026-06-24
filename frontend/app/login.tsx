@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -8,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,6 +16,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/src/auth";
 import { AnglerjMark } from "@/src/components/AnglerjMark";
 import { AnglerjWordmark } from "@/src/components/AnglerjWordmark";
+import { BrandInput } from "@/src/components/BrandInput";
+import { GradientButton } from "@/src/components/GradientButton";
+import { TaglineBar } from "@/src/components/TaglineBar";
 import { COLORS, RADIUS, SPACING, TYPE } from "@/src/theme";
 
 export default function LoginScreen() {
@@ -25,29 +26,25 @@ export default function LoginScreen() {
   const { loginEmail, loginGoogle, loginApple, signingIn, error, clearError, user } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [appleAvailable, setAppleAvailable] = useState(false);
 
-  // If already logged-in, bounce away
   useEffect(() => {
     if (user) router.replace("/(tabs)");
   }, [user, router]);
 
-  // Detect Apple availability
   useEffect(() => {
     (async () => {
       if (Platform.OS !== "ios") return;
       try {
         const AppleAuth = await import("expo-apple-authentication");
-        const ok = await AppleAuth.isAvailableAsync();
-        setAppleAvailable(ok);
+        setAppleAvailable(await AppleAuth.isAvailableAsync());
       } catch {
         setAppleAvailable(false);
       }
     })();
   }, []);
 
-  // On web, automatically attempt Google session capture if URL has session_id
+  // On web, auto-capture Google session_id from URL fragment
   useEffect(() => {
     if (Platform.OS !== "web") return;
     if (typeof window === "undefined") return;
@@ -56,18 +53,18 @@ export default function LoginScreen() {
       (window.location.search || "").includes("session_id");
     if (has) {
       loginGoogle()
-        .then((migrated) => {
-          if (migrated && (migrated.spots > 0 || migrated.catches > 0)) {
+        .then((m) => {
+          if (m && (m.spots > 0 || m.catches > 0)) {
             Alert.alert(
               "Welcome aboard!",
-              `Migrated ${migrated.spots} spots and ${migrated.catches} catches to your account.`,
+              `Migrated ${m.spots} spots and ${m.catches} catches to your account.`,
             );
           }
           router.replace("/(tabs)");
         })
         .catch(() => {});
     }
-     
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onSubmit = useCallback(async () => {
@@ -77,44 +74,44 @@ export default function LoginScreen() {
       return;
     }
     try {
-      const migrated = await loginEmail(email, password);
-      if (migrated && (migrated.spots > 0 || migrated.catches > 0)) {
+      const m = await loginEmail(email, password);
+      if (m && (m.spots > 0 || m.catches > 0)) {
         Alert.alert(
           "Welcome back!",
-          `Linked ${migrated.spots} spots and ${migrated.catches} catches to your account.`,
+          `Linked ${m.spots} spots and ${m.catches} catches to your account.`,
         );
       }
       router.replace("/(tabs)");
     } catch {
-      /* surfaced via error state */
+      /* surfaced via error */
     }
   }, [email, password, loginEmail, router, clearError]);
 
   const onGoogle = useCallback(async () => {
     clearError();
     try {
-      const migrated = await loginGoogle();
-      if (migrated == null) return;
-      if (migrated.spots > 0 || migrated.catches > 0) {
+      const m = await loginGoogle();
+      if (m == null) return;
+      if (m.spots > 0 || m.catches > 0) {
         Alert.alert(
           "Welcome aboard!",
-          `Migrated ${migrated.spots} spots and ${migrated.catches} catches to your account.`,
+          `Migrated ${m.spots} spots and ${m.catches} catches to your account.`,
         );
       }
       router.replace("/(tabs)");
     } catch {
-      /* surfaced via error state */
+      /* surfaced via error */
     }
   }, [loginGoogle, router, clearError]);
 
   const onApple = useCallback(async () => {
     clearError();
     try {
-      const migrated = await loginApple();
-      if (migrated == null) return;
+      const m = await loginApple();
+      if (m == null) return;
       router.replace("/(tabs)");
     } catch {
-      /* surfaced via error state */
+      /* surfaced via error */
     }
   }, [loginApple, router, clearError]);
 
@@ -127,30 +124,26 @@ export default function LoginScreen() {
         <ScrollView
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           <View style={styles.headerRow}>
             <Pressable onPress={() => router.back()} hitSlop={12} testID="login-close">
-              <Ionicons name="close" size={24} color={COLORS.onSurface} />
+              <Ionicons name="close" size={26} color={COLORS.onSurface} />
             </Pressable>
-            <AnglerjMark size={30} />
-            <View style={{ width: 24 }} />
+            <AnglerjMark size={32} />
+            <View style={{ width: 26 }} />
           </View>
 
           <View style={styles.heroBox}>
-            <AnglerjWordmark height={70} />
-            <Text style={styles.title}>Welcome back</Text>
-            <Text style={styles.subtitle}>
-              Sign in to sync your spots, catches, and forecasts across devices.
-            </Text>
+            <AnglerjWordmark height={62} />
+            <TaglineBar style={{ marginTop: SPACING.lg }} />
           </View>
 
           <View style={styles.form}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
+            <BrandInput
               testID="login-email"
-              style={styles.input}
+              iconName="mail-outline"
               placeholder="you@example.com"
-              placeholderTextColor={COLORS.textMuted}
               autoCapitalize="none"
               autoComplete="email"
               autoCorrect={false}
@@ -159,33 +152,18 @@ export default function LoginScreen() {
               onChangeText={setEmail}
               returnKeyType="next"
             />
-
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.passwordRow}>
-              <TextInput
-                testID="login-password"
-                style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                placeholder="At least 8 characters"
-                placeholderTextColor={COLORS.textMuted}
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={setPassword}
-                autoComplete="password"
-                returnKeyType="done"
-                onSubmitEditing={onSubmit}
-              />
-              <Pressable
-                style={styles.eyeBtn}
-                onPress={() => setShowPassword((s) => !s)}
-                hitSlop={8}
-              >
-                <Ionicons
-                  name={showPassword ? "eye-off-outline" : "eye-outline"}
-                  size={20}
-                  color={COLORS.textMuted}
-                />
-              </Pressable>
-            </View>
+            <BrandInput
+              testID="login-password"
+              iconName="lock-closed-outline"
+              togglePassword
+              placeholder="At least 8 characters"
+              value={password}
+              onChangeText={setPassword}
+              autoComplete="password"
+              returnKeyType="done"
+              onSubmitEditing={onSubmit}
+              containerStyle={{ marginTop: SPACING.md }}
+            />
 
             {error ? (
               <View style={styles.errorBox}>
@@ -194,18 +172,13 @@ export default function LoginScreen() {
               </View>
             ) : null}
 
-            <Pressable
+            <GradientButton
               testID="login-submit"
-              style={[styles.primaryBtn, signingIn && { opacity: 0.6 }]}
+              label="Sign In"
               onPress={onSubmit}
-              disabled={signingIn}
-            >
-              {signingIn ? (
-                <ActivityIndicator color={COLORS.onBrandPrimary} />
-              ) : (
-                <Text style={styles.primaryBtnText}>Sign In</Text>
-              )}
-            </Pressable>
+              loading={signingIn}
+              style={{ marginTop: SPACING.lg }}
+            />
 
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
@@ -215,12 +188,12 @@ export default function LoginScreen() {
 
             <Pressable
               testID="login-google"
-              style={[styles.oauthBtn, signingIn && { opacity: 0.6 }]}
+              style={[styles.socialBtn, signingIn && { opacity: 0.6 }]}
               onPress={onGoogle}
               disabled={signingIn}
             >
               <Ionicons name="logo-google" size={20} color={COLORS.onSurface} />
-              <Text style={styles.oauthBtnText}>Continue with Google</Text>
+              <Text style={styles.socialBtnText}>Continue with Google</Text>
             </Pressable>
 
             {appleAvailable ? (
@@ -268,65 +241,20 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingBottom: SPACING.sm,
   },
-  brand: { color: COLORS.onSurface, fontSize: TYPE.lg, fontWeight: "700" },
-  heroBox: { alignItems: "center", paddingVertical: SPACING.lg, gap: SPACING.sm },
-  logoCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: COLORS.brandTertiary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: SPACING.sm,
-  },
-  title: { color: COLORS.onSurface, fontSize: TYPE.xxl, fontWeight: "700", textAlign: "center" },
-  subtitle: {
-    color: COLORS.textMuted,
-    fontSize: TYPE.base,
-    textAlign: "center",
-    paddingHorizontal: SPACING.lg,
-  },
+  heroBox: { alignItems: "center", paddingVertical: SPACING.md },
   form: { gap: SPACING.sm },
-  label: { color: COLORS.textMuted, fontSize: TYPE.sm, fontWeight: "600", marginTop: SPACING.sm },
-  input: {
-    backgroundColor: COLORS.surfaceSecondary,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    color: COLORS.onSurface,
-    fontSize: TYPE.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  passwordRow: { flexDirection: "row", alignItems: "center", gap: SPACING.sm },
-  eyeBtn: {
-    width: 44,
-    height: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
   errorBox: {
     flexDirection: "row",
     alignItems: "center",
     gap: SPACING.sm,
-    backgroundColor: "#3a1a1a",
+    backgroundColor: "rgba(243, 139, 130, 0.12)",
     padding: SPACING.md,
     borderRadius: RADIUS.md,
     marginTop: SPACING.sm,
+    borderWidth: 1,
+    borderColor: "rgba(243, 139, 130, 0.35)",
   },
   errorText: { color: COLORS.error, fontSize: TYPE.base, flex: 1 },
-  primaryBtn: {
-    backgroundColor: COLORS.brand,
-    paddingVertical: SPACING.lg,
-    borderRadius: RADIUS.md,
-    alignItems: "center",
-    marginTop: SPACING.md,
-  },
-  primaryBtnText: { color: COLORS.onBrandPrimary, fontWeight: "700", fontSize: TYPE.lg },
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -335,26 +263,26 @@ const styles = StyleSheet.create({
   },
   dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
   dividerText: { color: COLORS.textMuted, fontSize: TYPE.sm },
-  oauthBtn: {
+  socialBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: SPACING.md,
     backgroundColor: COLORS.surfaceSecondary,
-    paddingVertical: SPACING.lg,
-    borderRadius: RADIUS.md,
+    paddingVertical: 18,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: COLORS.borderBlue,
   },
-  oauthBtnText: { color: COLORS.onSurface, fontWeight: "600", fontSize: TYPE.lg },
+  socialBtnText: { color: COLORS.onSurface, fontWeight: "600", fontSize: TYPE.lg },
   appleBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: SPACING.md,
     backgroundColor: "#000",
-    paddingVertical: SPACING.lg,
-    borderRadius: RADIUS.md,
+    paddingVertical: 18,
+    borderRadius: 16,
     marginTop: SPACING.sm,
   },
   appleBtnText: { color: "#fff", fontWeight: "600", fontSize: TYPE.lg },
@@ -362,5 +290,5 @@ const styles = StyleSheet.create({
   linkText: { color: COLORS.textMuted, fontSize: TYPE.base },
   linkAccent: { color: COLORS.brand, fontWeight: "700" },
   guestBtn: { alignItems: "center", paddingVertical: SPACING.md },
-  guestText: { color: COLORS.textMuted, fontSize: TYPE.base, textDecorationLine: "underline" },
+  guestText: { color: COLORS.brand, fontSize: TYPE.base, textDecorationLine: "underline" },
 });
