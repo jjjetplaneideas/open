@@ -1,53 +1,28 @@
 import React from "react";
-import { View } from "react-native";
-import Svg, { Circle, Path } from "react-native-svg";
+import { Image, ImageStyle, StyleProp, View } from "react-native";
 
-import { COLORS } from "../theme";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const ICON = require("../../assets/images/anglerj_icon.png");
 
 type Props = {
   size?: number;
-  color?: string;
-  style?: any;
+  /** Optional override style applied to the inner Image. */
+  style?: StyleProp<ImageStyle>;
 };
 
 /**
- * Anglerj brand mark — stylized lowercase "j" rendered as a fish hook.
- * Eyelet at the top, vertical stem, semi-circular hook curve at the bottom
- * with a small barb. Designed to mirror the official Anglerj logo guide.
+ * Official Anglerj brand mark — circular dark-navy badge with the
+ * blue fish-hook "j" icon. Backed by /assets/images/anglerj_icon.png
+ * which was generated from the master brand artwork supplied by the
+ * user (1254×1254 master → 512×512 icon crop).
  */
-export function AnglerjMark({ size = 64, color = COLORS.brand, style }: Props) {
-  // Internal viewBox aspect tuned so the eyelet fits exactly inside a square.
-  // 60 (wide) × 100 (tall) keeps the hook's curve visually balanced.
-  const w = size * 0.6;
-  const h = size;
+export function AnglerjMark({ size = 88, style }: Props) {
   return (
-    <View style={style}>
-      <Svg width={w} height={h} viewBox="0 0 60 100" fill="none">
-        {/* Eyelet at top */}
-        <Circle cx="42" cy="9" r="6" stroke={color} strokeWidth="4.5" fill="none" />
-        {/* Vertical stem */}
-        <Path
-          d="M42 16 L42 64"
-          stroke={color}
-          strokeWidth="8.5"
-          strokeLinecap="round"
-        />
-        {/* Hook curve sweeping left & up */}
-        <Path
-          d="M42 64 Q42 92 22 92 Q4 92 4 74 L4 70"
-          stroke={color}
-          strokeWidth="8.5"
-          strokeLinecap="round"
-          fill="none"
-        />
-        {/* Small barb on the inner curve */}
-        <Path
-          d="M12 72 L20 64"
-          stroke={color}
-          strokeWidth="5"
-          strokeLinecap="round"
-        />
-      </Svg>
+    <View style={{ width: size, height: size }}>
+      <Image
+        source={ICON}
+        style={[{ width: size, height: size, resizeMode: "contain" }, style]}
+      />
     </View>
   );
 }

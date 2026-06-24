@@ -111,12 +111,12 @@ export default function RegisterScreen() {
             <Pressable onPress={() => router.back()} hitSlop={12} testID="register-close">
               <Ionicons name="close" size={24} color={COLORS.onSurface} />
             </Pressable>
-            <AnglerjWordmark height={28} />
+            <AnglerjMark size={30} />
             <View style={{ width: 24 }} />
           </View>
 
           <View style={styles.heroBox}>
-            <AnglerjMark size={80} />
+            <AnglerjWordmark height={64} />
             <Text style={styles.title}>Create your account</Text>
             <Text style={styles.subtitle}>
               Save your spots, catches, and preferences. We’ll migrate any guest data automatically.

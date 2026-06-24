@@ -49,11 +49,8 @@ export default function OnboardingScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.surface }}>
       <ScrollView contentContainerStyle={{ padding: SPACING.lg, paddingBottom: 120 }}>
-        <View style={styles.heroIconWrap}>
-          <AnglerjMark size={68} />
-        </View>
-        <View style={{ alignItems: "center", marginBottom: 4 }}>
-          <AnglerjWordmark height={42} showTagline />
+        <View style={[styles.heroIconWrap, { alignItems: "center", marginBottom: 4 }]}>
+          <AnglerjWordmark height={180} fullLockup />
         </View>
         <Text style={styles.subtitle}>
           Forecasts, conditions, almanac, and safety in one place.

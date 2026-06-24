@@ -132,12 +132,12 @@ export default function LoginScreen() {
             <Pressable onPress={() => router.back()} hitSlop={12} testID="login-close">
               <Ionicons name="close" size={24} color={COLORS.onSurface} />
             </Pressable>
-            <AnglerjWordmark height={28} />
+            <AnglerjMark size={30} />
             <View style={{ width: 24 }} />
           </View>
 
           <View style={styles.heroBox}>
-            <AnglerjMark size={88} />
+            <AnglerjWordmark height={70} />
             <Text style={styles.title}>Welcome back</Text>
             <Text style={styles.subtitle}>
               Sign in to sync your spots, catches, and forecasts across devices.

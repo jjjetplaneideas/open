@@ -1,35 +1,53 @@
-# FishCast – Product Requirements
+# Anglerj — Product Requirements & Progress
 
 ## Vision
-A smart fishing forecast app that tells anglers, at a glance, whether today is a good day to fish — based on barometric pressure trends, weather, sunlight, wind, and AI-curated local almanac knowledge.
+A complete fishing-decision engine that turns weather, tides, swell, moon/solunar, and barometric pressure into a dynamic "Fishing Score" with AI-generated species recommendations, safety alerts, and daily reports.
 
-## Stack
-- **Frontend**: React Native (Expo SDK 54), expo-router, expo-image, expo-image-picker, expo-location, expo-haptics
-- **Backend**: FastAPI, MongoDB (motor), httpx
-- **Data sources**: Open-Meteo (weather, geocoding) — free, no key
-- **AI**: Anthropic Claude Sonnet 4.6 via `emergentintegrations` library + Emergent Universal LLM key
-- **Storage**: MongoDB (spots, catches) + AsyncStorage (user_id, saved location)
+## Current Status (June 2026)
+Production-track MVP. Dark-mode native iOS/Android app via Expo Router, FastAPI backend, MongoDB.
 
-## Core Features (MVP)
-1. **Today** — Hero fishing score (0-100) + verdict (Excellent/Good/Fair/Poor) over a golden-hour water hero. Barometric pressure with rising/falling/stable trend (#1 factor for anglers). Wind, temp, sun/solunar windows, AI "Local Angler Almanac" tip card.
-2. **Forecast** — 7-day outlook with daily score badges, tap to expand details.
-3. **Fish** — AI-generated seasonal species list for the user's location (6 species with technique, best time, activity level).
-4. **Log** — Personal catch journal with photo, weight/length, location, notes.
-5. **Spots** — Save/recall favorite fishing pins.
-6. **Location** — GPS or manual city/zip lookup via Open-Meteo geocoding.
+## Completed
+- Core forecasting engine (Open-Meteo, ephem, OSM, Nominatim) with score, safety, confidence
+- 24-hour bite forecast, tide & swell charts, animated live conditions
+- Catch journal, saved spots, hotspots discovery (OSM Overpass)
+- AI: species recommendations, score explanations, almanac, daily report (Emergent LLM)
+- Onboarding legal flow (ToS / Privacy / Liability waiver), Regulations Center
+- Map picker (Leaflet WebView with native + web fallback)
+- Catch analytics dashboard
+- Visual brand rebrand to "Anglerj" + dark-mode default + official logo assets (hook-J)
+- **Authentication (June 2026 session)**:
+  - Email/Password (JWT, bcrypt) — `/api/auth/register`, `/api/auth/login`
+  - Apple Sign-In via `expo-apple-authentication` (iOS dev build required)
+  - Google Sign-In via Emergent Google Auth proxy
+  - Logout, `GET /api/auth/me`, guest-data migration on first sign-in
+  - AuthProvider context (loading / authed / unauthed states)
+  - Login / Register / Account screens with brand-aligned UI
+  - Tokens stored in `expo-secure-store` (mobile) / `localStorage` (web)
+  - 23/23 backend auth tests passing (pytest)
 
-## Fishing Score Algorithm (weighted)
-- Pressure trend 30% (falling = feeding frenzy)
-- Pressure level 18%
-- Wind 18% (5-20 km/h ideal)
-- Cloud cover 12% (overcast favored)
-- Temperature 12%
-- Precipitation 10%
+## Pending P0
+- RevenueCat subscription integration (monthly / yearly / lifetime; entitlement "Anglerj")
+  - User-provided key: `test_RRJiTfnoKRFsvaTyVSZVyHXFCnX`
+  - Use `react-native-purchases` SDK (Expo native deps; dev build required)
+- AdMob free-tier ads (user pub ID: `pub-1411683747413283`, inactive — use Google test IDs for now)
+- Relational DB schema migration (Users, Spots, Catches, LegalAcceptances, AnglerjAiCache with UUIDs)
 
-## Smart Business Hook
-**The Local Almanac AI card** (powered by Claude) becomes the daily share-worthy moment — a tactical tip an angler will screenshot and post in fishing groups. Drives organic growth without ad spend.
+## Pending P1
+- Backend modularization (server.py is 1525 lines — split into routes/, services/)
+- Secure License Vault (FaceID/TouchID protected document storage)
+- Web Admin Dashboard
+- Push notifications (bite windows, tide changes)
 
-## Next Iterations
-- Push notifications when conditions hit "Excellent" near saved spots
-- Hourly bite-window chart
-- Premium tier: tide data, water temperature, regulations by state
+## Pending P2
+- Social profiles, crew sharing, photo fish ID
+
+## Files of Note
+- `/app/backend/server.py` — main app + forecast/AI/spots/catches/hotspots endpoints
+- `/app/backend/routes/auth.py` — auth endpoints
+- `/app/backend/models/user.py` — User pydantic models
+- `/app/backend/utils/security.py` — JWT, bcrypt, current-user helper
+- `/app/backend/tests/test_auth.py` — 23 auth tests
+- `/app/frontend/src/auth.tsx` — AuthProvider context
+- `/app/frontend/src/components/AnglerjMark.tsx` & `AnglerjWordmark.tsx` — brand components
+- `/app/frontend/assets/images/anglerj_{icon,wordmark,wordmark_tagline,full}.png` — official logo assets
+- `/app/frontend/app/{login,register,account}.tsx` — auth screens
