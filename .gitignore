@@ -1,0 +1,11 @@
+# Rust
+/engine/target/
+
+# Node / Expo
+/app/node_modules/
+/app/.expo/
+/app/dist/
+
+# OS / editor
+.DS_Store
+*.log

@@ -1,0 +1,18 @@
+[package]
+name = "editor_engine"
+version = "0.1.0"
+edition = "2024"
+description = "Shared, portable text-editing core for the mobile IDE (FFI-ready)."
+license = "GPL-3.0-or-later"
+
+[lib]
+name = "editor_engine"
+# `cdylib` enables building a shared library for FFI from Swift/Kotlin/JS.
+# `rlib` keeps it usable as a normal Rust dependency and for `cargo test`.
+crate-type = ["rlib", "cdylib"]
+
+[[bin]]
+name = "engine-demo"
+path = "src/main.rs"
+
+[dependencies]
