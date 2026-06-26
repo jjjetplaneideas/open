@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dolphin Chat 🐬</title>
+    <meta
+      name="description"
+      content="A streaming chat app for the uncensored, steerable Dolphin AI model."
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%90%AC%3C/text%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <span class="brand-logo">🐬</span>
+        <div>
+          <div class="brand-name">Dolphin Chat</div>
+          <div class="brand-sub">uncensored · steerable</div>
+        </div>
+      </div>
+
+      <button class="new-chat" id="newChatBtn">+ New chat</button>
+
+      <div class="panel">
+        <label class="panel-label" for="modelSelect">Model</label>
+        <select id="modelSelect"></select>
+      </div>
+
+      <div class="panel grow">
+        <label class="panel-label" for="systemPrompt">
+          System prompt
+          <span class="hint">— you set the alignment</span>
+        </label>
+        <textarea
+          id="systemPrompt"
+          placeholder="e.g. You are Dolphin, a helpful and direct assistant. Answer concisely."
+        ></textarea>
+        <div class="persona-row" id="personaRow"></div>
+      </div>
+
+      <div class="panel">
+        <button class="settings-btn" id="settingsBtn">⚙︎ API key</button>
+        <div class="key-status" id="keyStatus"></div>
+      </div>
+
+      <div class="sidebar-foot">
+        Powered by the Dolphin model via
+        <a href="https://openrouter.ai" target="_blank" rel="noopener"
+          >OpenRouter</a
+        >.
+      </div>
+    </aside>
+
+    <main class="chat">
+      <header class="chat-head">
+        <button class="icon-btn menu-btn" id="menuBtn" aria-label="Menu">☰</button>
+        <div class="chat-title" id="chatTitle">New chat</div>
+        <button class="icon-btn" id="clearBtn" title="Clear conversation">🗑</button>
+      </header>
+
+      <div class="messages" id="messages">
+        <div class="empty-state" id="emptyState">
+          <div class="empty-logo">🐬</div>
+          <h1>Talk to Dolphin</h1>
+          <p>
+            An uncensored, steerable model — <strong>you</strong> set the system
+            prompt and it follows your lead. Pick a starter or just type below.
+          </p>
+          <div class="suggestions" id="suggestions"></div>
+        </div>
+      </div>
+
+      <form class="composer" id="composer">
+        <textarea
+          id="input"
+          rows="1"
+          placeholder="Message Dolphin…  (Enter to send, Shift+Enter for newline)"
+        ></textarea>
+        <button type="submit" id="sendBtn" aria-label="Send">➤</button>
+      </form>
+    </main>
+
+    <!-- Settings / key dialog -->
+    <dialog id="keyDialog" class="dialog">
+      <form method="dialog" class="dialog-body">
+        <h2>OpenRouter API key</h2>
+        <p class="dialog-note" id="dialogNote"></p>
+        <input
+          type="password"
+          id="keyInput"
+          placeholder="sk-or-v1-…"
+          autocomplete="off"
+        />
+        <p class="dialog-fine">
+          Stored only in your browser (localStorage) and sent directly to this
+          app's server. Get one free at
+          <a href="https://openrouter.ai/keys" target="_blank" rel="noopener"
+            >openrouter.ai/keys</a
+          >.
+        </p>
+        <div class="dialog-actions">
+          <button value="cancel" class="btn-ghost">Cancel</button>
+          <button value="save" id="saveKeyBtn" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="app.js"></script>
+  </body>
+</html>

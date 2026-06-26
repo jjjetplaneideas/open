@@ -1,0 +1,27 @@
+{
+  "name": "dolphin-chat",
+  "version": "1.0.0",
+  "description": "A self-hostable, streaming chat app for the uncensored, steerable Dolphin AI model (via OpenRouter).",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "keywords": [
+    "dolphin",
+    "dphn",
+    "llm",
+    "chat",
+    "openrouter",
+    "uncensored",
+    "ai"
+  ],
+  "license": "MIT"
+}
