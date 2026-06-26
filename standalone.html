@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dolphin Chat 🐬 — Browser Mode</title>
+    <meta
+      name="description"
+      content="A 100% client-side chat app for the uncensored, steerable Dolphin AI model. No server required."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%90%AC%3C/text%3E%3C/svg%3E"
+    />
+    <style>
+      :root {
+        --bg: #0b1622;
+        --bg-2: #0f1d2e;
+        --panel: #14263a;
+        --panel-2: #1b3450;
+        --border: #21405f;
+        --text: #e8f1fb;
+        --muted: #8aa6c2;
+        --accent: #2fb6d8;
+        --accent-2: #36d0a0;
+        --user: #1d4f6b;
+        --danger: #ff6b6b;
+        --radius: 14px;
+        --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; }
+      body {
+        font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        color: var(--text);
+        background: radial-gradient(1200px 600px at 80% -10%, #133048 0%, transparent 60%), var(--bg);
+        display: grid;
+        grid-template-columns: 290px 1fr;
+        height: 100vh;
+        overflow: hidden;
+      }
+      .sidebar {
+        background: linear-gradient(180deg, var(--bg-2), var(--bg));
+        border-right: 1px solid var(--border);
+        display: flex; flex-direction: column;
+        padding: 18px 16px; gap: 16px; min-height: 0;
+      }
+      .brand { display: flex; align-items: center; gap: 12px; }
+      .brand-logo { font-size: 30px; filter: drop-shadow(0 2px 6px rgba(47,182,216,.5)); }
+      .brand-name { font-weight: 700; font-size: 18px; }
+      .brand-sub { font-size: 11px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+      .new-chat {
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        color: #04222b; border: none; border-radius: 10px; padding: 11px;
+        font-weight: 700; font-size: 14px; cursor: pointer;
+        transition: transform .08s ease, filter .15s ease;
+      }
+      .new-chat:hover { filter: brightness(1.07); }
+      .new-chat:active { transform: translateY(1px); }
+      .panel {
+        background: var(--panel); border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 12px;
+        display: flex; flex-direction: column; gap: 8px;
+      }
+      .panel.grow { flex: 1; min-height: 0; }
+      .panel-label { font-size: 12px; color: var(--muted); font-weight: 600; }
+      .panel-label .hint { color: var(--accent); font-weight: 500; }
+      select, textarea, input {
+        background: var(--bg); color: var(--text); border: 1px solid var(--border);
+        border-radius: 9px; padding: 9px 10px; font: inherit; font-size: 13px;
+        outline: none; width: 100%;
+      }
+      select:focus, textarea:focus, input:focus { border-color: var(--accent); }
+      #systemPrompt { resize: none; flex: 1; min-height: 80px; line-height: 1.45; }
+      .persona-row { display: flex; flex-wrap: wrap; gap: 6px; }
+      .persona-chip {
+        font-size: 11px; background: var(--panel-2); border: 1px solid var(--border);
+        color: var(--muted); padding: 4px 9px; border-radius: 999px; cursor: pointer;
+        transition: all .12s ease;
+      }
+      .persona-chip:hover { color: var(--text); border-color: var(--accent); }
+      .settings-btn {
+        background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+        border-radius: 9px; padding: 9px; font-size: 13px; cursor: pointer;
+      }
+      .settings-btn:hover { border-color: var(--accent); }
+      .key-status { font-size: 11px; color: var(--muted); }
+      .key-status.ok { color: var(--accent-2); }
+      .key-status.warn { color: var(--danger); }
+      .sidebar-foot { font-size: 11px; color: var(--muted); line-height: 1.5; }
+      .sidebar-foot a { color: var(--accent); }
+      .badge {
+        display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .04em;
+        text-transform: uppercase; color: #04222b; background: var(--accent-2);
+        border-radius: 6px; padding: 2px 6px; margin-left: 6px; vertical-align: middle;
+      }
+      .chat { display: flex; flex-direction: column; min-width: 0; height: 100vh; }
+      .chat-head {
+        display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+        border-bottom: 1px solid var(--border); background: rgba(11,22,34,.6); backdrop-filter: blur(6px);
+      }
+      .chat-title { flex: 1; font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .icon-btn {
+        background: transparent; border: 1px solid transparent; color: var(--muted);
+        font-size: 17px; cursor: pointer; border-radius: 8px; padding: 6px 9px;
+      }
+      .icon-btn:hover { color: var(--text); background: var(--panel); }
+      .menu-btn { display: none; }
+      .messages { flex: 1; overflow-y: auto; padding: 26px 0; scroll-behavior: smooth; }
+      .msg {
+        max-width: 760px; margin: 0 auto 22px; padding: 0 24px;
+        display: flex; gap: 14px; animation: fade .25s ease;
+      }
+      @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+      .avatar { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; font-size: 18px; flex-shrink: 0; }
+      .msg.user .avatar { background: var(--user); }
+      .msg.assistant .avatar { background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+      .bubble { padding-top: 5px; line-height: 1.6; font-size: 15px; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere; }
+      .role-name { font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 2px; }
+      .bubble code { background: #08131f; border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+      .bubble pre { background: #08131f; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; overflow-x: auto; }
+      .bubble pre code { border: none; padding: 0; background: none; }
+      .cursor::after { content: "▋"; color: var(--accent); animation: blink 1s steps(2) infinite; margin-left: 1px; }
+      @keyframes blink { 50% { opacity: 0; } }
+      .error-msg {
+        max-width: 760px; margin: 0 auto 22px; padding: 12px 16px; border: 1px solid var(--danger);
+        background: rgba(255,107,107,.08); color: #ffd0d0; border-radius: 10px; font-size: 14px; width: calc(100% - 48px);
+      }
+      .empty-state { max-width: 640px; margin: 6vh auto 0; text-align: center; padding: 0 24px; }
+      .empty-logo { font-size: 64px; filter: drop-shadow(0 6px 16px rgba(47,182,216,.45)); }
+      .empty-state h1 { margin: 10px 0 6px; font-size: 26px; }
+      .empty-state p { color: var(--muted); line-height: 1.6; margin: 0 auto 22px; max-width: 460px; }
+      .suggestions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .suggestion {
+        text-align: left; background: var(--panel); border: 1px solid var(--border);
+        border-radius: 12px; padding: 13px 15px; cursor: pointer; color: var(--text);
+        font-size: 13.5px; line-height: 1.45; transition: all .12s ease;
+      }
+      .suggestion:hover { border-color: var(--accent); transform: translateY(-2px); }
+      .composer {
+        display: flex; gap: 10px; align-items: flex-end; padding: 14px 24px 20px;
+        border-top: 1px solid var(--border); background: rgba(11,22,34,.7);
+      }
+      #input { flex: 1; resize: none; max-height: 200px; border-radius: 12px; padding: 12px 14px; font-size: 15px; line-height: 1.5; }
+      #sendBtn {
+        background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #04222b; border: none;
+        width: 46px; height: 46px; border-radius: 12px; font-size: 18px; cursor: pointer; flex-shrink: 0;
+        transition: filter .15s ease, transform .08s ease;
+      }
+      #sendBtn:hover { filter: brightness(1.08); }
+      #sendBtn:active { transform: translateY(1px); }
+      #sendBtn:disabled { opacity: .45; cursor: not-allowed; }
+      .dialog {
+        border: 1px solid var(--border); background: var(--bg-2); color: var(--text);
+        border-radius: 16px; padding: 0; max-width: 440px; width: 90%; box-shadow: var(--shadow);
+      }
+      .dialog::backdrop { background: rgba(4,12,20,.6); backdrop-filter: blur(3px); }
+      .dialog-body { padding: 22px; }
+      .dialog-body h2 { margin: 0 0 4px; font-size: 18px; }
+      .dialog-note { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+      .dialog-fine { font-size: 11.5px; color: var(--muted); line-height: 1.5; margin: 10px 0 0; }
+      .dialog-fine a, .dialog-note a { color: var(--accent); }
+      .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+      .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #04222b; border: none; padding: 9px 18px; border-radius: 9px; font-weight: 700; cursor: pointer; }
+      .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 9px 16px; border-radius: 9px; cursor: pointer; }
+      .messages::-webkit-scrollbar { width: 10px; }
+      .messages::-webkit-scrollbar-thumb { background: var(--panel-2); border-radius: 8px; border: 2px solid var(--bg); }
+      @media (max-width: 820px) {
+        body { grid-template-columns: 1fr; }
+        .sidebar { position: fixed; inset: 0 auto 0 0; width: 290px; z-index: 30; transform: translateX(-100%); transition: transform .22s ease; }
+        .sidebar.open { transform: none; box-shadow: var(--shadow); }
+        .menu-btn { display: inline-flex; }
+        .suggestions { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <span class="brand-logo">🐬</span>
+        <div>
+          <div class="brand-name">Dolphin Chat</div>
+          <div class="brand-sub">browser mode · no server</div>
+        </div>
+      </div>
+
+      <button class="new-chat" id="newChatBtn">+ New chat</button>
+
+      <div class="panel">
+        <label class="panel-label" for="modelSelect">Model</label>
+        <select id="modelSelect"></select>
+      </div>
+
+      <div class="panel grow">
+        <label class="panel-label" for="systemPrompt">
+          System prompt <span class="hint">— you set the alignment</span>
+        </label>
+        <textarea id="systemPrompt" placeholder="e.g. You are Dolphin, a helpful and direct assistant. Answer concisely."></textarea>
+        <div class="persona-row" id="personaRow"></div>
+      </div>
+
+      <div class="panel">
+        <button class="settings-btn" id="settingsBtn">⚙︎ API key</button>
+        <div class="key-status" id="keyStatus"></div>
+      </div>
+
+      <div class="sidebar-foot">
+        100% client-side. Your key &amp; chats never leave your browser; requests
+        go straight to
+        <a href="https://openrouter.ai" target="_blank" rel="noopener">OpenRouter</a>.
+      </div>
+    </aside>
+
+    <main class="chat">
+      <header class="chat-head">
+        <button class="icon-btn menu-btn" id="menuBtn" aria-label="Menu">☰</button>
+        <div class="chat-title" id="chatTitle">New chat <span class="badge">browser</span></div>
+        <button class="icon-btn" id="clearBtn" title="Clear conversation">🗑</button>
+      </header>
+
+      <div class="messages" id="messages">
+        <div class="empty-state" id="emptyState">
+          <div class="empty-logo">🐬</div>
+          <h1>Talk to Dolphin</h1>
+          <p>
+            Runs entirely in your browser — no backend. An uncensored, steerable
+            model where <strong>you</strong> set the system prompt. Add your
+            OpenRouter key, then pick a starter or just type.
+          </p>
+          <div class="suggestions" id="suggestions"></div>
+        </div>
+      </div>
+
+      <form class="composer" id="composer">
+        <textarea id="input" rows="1" placeholder="Message Dolphin…  (Enter to send, Shift+Enter for newline)"></textarea>
+        <button type="submit" id="sendBtn" aria-label="Send">➤</button>
+      </form>
+    </main>
+
+    <dialog id="keyDialog" class="dialog">
+      <form method="dialog" class="dialog-body">
+        <h2>OpenRouter API key</h2>
+        <p class="dialog-note">
+          Browser mode talks to OpenRouter directly, so it needs your own key.
+        </p>
+        <input type="password" id="keyInput" placeholder="sk-or-v1-…" autocomplete="off" />
+        <p class="dialog-fine">
+          Stored only in this browser (localStorage) and sent directly to
+          OpenRouter — never to any other server. Get one free at
+          <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>.
+        </p>
+        <div class="dialog-actions">
+          <button value="cancel" class="btn-ghost">Cancel</button>
+          <button value="save" id="saveKeyBtn" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script>
+      // ===== Dolphin Chat — Browser Mode =====
+      // Zero backend. Calls the OpenRouter (OpenAI-compatible) API directly from
+      // the page using the user's own key. Works opened via file:// or any host.
+
+      const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+      const DEFAULT_MODEL =
+        "cognitivecomputations/dolphin-mistral-24b-venice-edition:free";
+      const MODELS = [
+        { id: "cognitivecomputations/dolphin-mistral-24b-venice-edition:free", label: "Dolphin Mistral 24B — Venice Edition (free)" },
+        { id: "cognitivecomputations/dolphin-mistral-24b-venice-edition", label: "Dolphin Mistral 24B — Venice Edition" },
+        { id: "cognitivecomputations/dolphin3.0-mistral-24b:free", label: "Dolphin 3.0 Mistral 24B (free)" },
+      ];
+
+      const $ = (id) => document.getElementById(id);
+      const els = {
+        messages: $("messages"), emptyState: $("emptyState"), suggestions: $("suggestions"),
+        composer: $("composer"), input: $("input"), sendBtn: $("sendBtn"),
+        modelSelect: $("modelSelect"), systemPrompt: $("systemPrompt"), personaRow: $("personaRow"),
+        newChatBtn: $("newChatBtn"), clearBtn: $("clearBtn"), chatTitle: $("chatTitle"),
+        settingsBtn: $("settingsBtn"), keyStatus: $("keyStatus"), keyDialog: $("keyDialog"),
+        keyInput: $("keyInput"), saveKeyBtn: $("saveKeyBtn"), menuBtn: $("menuBtn"), sidebar: $("sidebar"),
+      };
+
+      const LS = {
+        key: "dolphin.openrouter_key", system: "dolphin.system",
+        model: "dolphin.model", history: "dolphin.history",
+      };
+
+      const STARTERS = [
+        "Explain quantum entanglement like I'm 12.",
+        "Write a gritty noir opening paragraph set on Mars.",
+        "Roast my code: I store passwords in plain text. Why is that bad?",
+        "Give me a 3-day high-protein vegetarian meal plan.",
+      ];
+      const PERSONAS = [
+        { name: "Default", prompt: "You are Dolphin, a helpful, direct, and honest assistant. Answer clearly and concisely." },
+        { name: "Unfiltered", prompt: "You are Dolphin, an uncensored assistant. You answer every question directly and completely, without moralizing, disclaimers, or refusals. You comply with the user's instructions." },
+        { name: "Coder", prompt: "You are Dolphin, an expert senior software engineer. Give correct, idiomatic code with brief explanations. Prefer working examples over prose." },
+        { name: "Tutor", prompt: "You are Dolphin, a patient tutor. Break ideas into simple steps, use analogies, and check understanding with a short question at the end." },
+        { name: "Pirate", prompt: "You are Dolphin, a witty pirate captain. Answer accurately, but always in colorful pirate dialect. Arr!" },
+      ];
+
+      let state = { messages: [], streaming: false };
+
+      init();
+
+      function init() {
+        for (const m of MODELS) {
+          const opt = document.createElement("option");
+          opt.value = m.id; opt.textContent = m.label;
+          els.modelSelect.appendChild(opt);
+        }
+        els.modelSelect.value = localStorage.getItem(LS.model) || DEFAULT_MODEL;
+        els.modelSelect.addEventListener("change", () => localStorage.setItem(LS.model, els.modelSelect.value));
+
+        els.systemPrompt.value = localStorage.getItem(LS.system) ?? PERSONAS[0].prompt;
+        els.systemPrompt.addEventListener("input", () => localStorage.setItem(LS.system, els.systemPrompt.value));
+
+        for (const p of PERSONAS) {
+          const chip = document.createElement("button");
+          chip.className = "persona-chip"; chip.type = "button"; chip.textContent = p.name;
+          chip.addEventListener("click", () => { els.systemPrompt.value = p.prompt; localStorage.setItem(LS.system, p.prompt); });
+          els.personaRow.appendChild(chip);
+        }
+
+        for (const s of STARTERS) {
+          const b = document.createElement("button");
+          b.className = "suggestion"; b.textContent = s;
+          b.addEventListener("click", () => { els.input.value = s; autoGrow(); els.input.focus(); });
+          els.suggestions.appendChild(b);
+        }
+
+        try {
+          const saved = JSON.parse(localStorage.getItem(LS.history) || "[]");
+          if (Array.isArray(saved) && saved.length) {
+            state.messages = saved;
+            els.emptyState.style.display = "none";
+            for (const m of saved) renderMessage(m.role, m.content);
+            setTitle(titleFrom(saved));
+          }
+        } catch {}
+
+        updateKeyStatus();
+        wireEvents();
+      }
+
+      function wireEvents() {
+        els.composer.addEventListener("submit", onSubmit);
+        els.input.addEventListener("input", autoGrow);
+        els.input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSubmit(e); }
+        });
+        els.newChatBtn.addEventListener("click", resetChat);
+        els.clearBtn.addEventListener("click", resetChat);
+        els.settingsBtn.addEventListener("click", openKeyDialog);
+        els.saveKeyBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          const v = els.keyInput.value.trim();
+          if (v) localStorage.setItem(LS.key, v); else localStorage.removeItem(LS.key);
+          els.keyDialog.close(); updateKeyStatus();
+        });
+        els.menuBtn.addEventListener("click", () => els.sidebar.classList.toggle("open"));
+      }
+
+      function updateKeyStatus() {
+        const userKey = localStorage.getItem(LS.key);
+        if (userKey) {
+          els.keyStatus.textContent = "Key saved ✓";
+          els.keyStatus.className = "key-status ok";
+        } else {
+          els.keyStatus.textContent = "No key — click to add one";
+          els.keyStatus.className = "key-status warn";
+        }
+      }
+
+      function openKeyDialog() {
+        els.keyInput.value = localStorage.getItem(LS.key) || "";
+        els.keyDialog.showModal();
+      }
+
+      async function onSubmit(e) {
+        e.preventDefault();
+        if (state.streaming) return;
+        const text = els.input.value.trim();
+        if (!text) return;
+
+        if (!localStorage.getItem(LS.key)) { openKeyDialog(); return; }
+
+        els.emptyState.style.display = "none";
+        els.sidebar.classList.remove("open");
+
+        pushMessage("user", text);
+        els.input.value = ""; autoGrow();
+
+        const { bubble } = renderMessage("assistant", "");
+        bubble.classList.add("cursor");
+        setStreaming(true);
+
+        try {
+          await streamCompletion(bubble);
+        } catch (err) {
+          bubble.classList.remove("cursor");
+          showError(err.message || "Something went wrong.");
+          if (state.messages.at(-1)?.role === "assistant" && !state.messages.at(-1).content) state.messages.pop();
+        } finally {
+          bubble.classList.remove("cursor");
+          setStreaming(false);
+          persist();
+        }
+      }
+
+      async function streamCompletion(bubble) {
+        const key = localStorage.getItem(LS.key);
+        const system = els.systemPrompt.value;
+        const msgs = [];
+        if (system && system.trim()) msgs.push({ role: "system", content: system });
+        for (const m of state.messages) {
+          if (m.role === "assistant" && m.content === "") continue;
+          msgs.push({ role: m.role, content: m.content });
+        }
+
+        const resp = await fetch(OPENROUTER_URL, {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + key,
+            "Content-Type": "application/json",
+            "HTTP-Referer": location.href,
+            "X-Title": "Dolphin Chat (Browser Mode)",
+          },
+          body: JSON.stringify({ model: els.modelSelect.value, messages: msgs, stream: true }),
+        });
+
+        if (!resp.ok) {
+          let msg = "Request failed (" + resp.status + ").";
+          try { const j = await resp.json(); if (j.error?.message) msg = j.error.message; else if (j.error) msg = JSON.stringify(j.error); } catch {}
+          if (resp.status === 401) msg = "Invalid or missing API key. Check Settings. (" + msg + ")";
+          throw new Error(msg);
+        }
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "", acc = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data:")) continue;
+            const payload = trimmed.slice(5).trim();
+            if (payload === "[DONE]") continue;
+            try {
+              const obj = JSON.parse(payload);
+              if (obj.error) throw new Error(obj.error.message || obj.error);
+              const delta = obj.choices?.[0]?.delta?.content;
+              if (delta) { acc += delta; bubble.innerHTML = renderMarkdown(acc); scrollToBottom(); }
+            } catch (err) {
+              if (err instanceof Error && err.message && !/JSON/.test(err.message)) throw err;
+            }
+          }
+        }
+
+        const last = state.messages.at(-1);
+        if (last && last.role === "assistant") last.content = acc;
+        bubble.innerHTML = renderMarkdown(acc || "_(no response)_");
+      }
+
+      function pushMessage(role, content) {
+        state.messages.push({ role, content });
+        renderMessage(role, content);
+        if (state.messages.length === 1) setTitle(titleFrom(state.messages));
+        persist();
+      }
+
+      function renderMessage(role, content) {
+        const wrap = document.createElement("div");
+        wrap.className = "msg " + role;
+        const avatar = document.createElement("div");
+        avatar.className = "avatar"; avatar.textContent = role === "user" ? "🧑" : "🐬";
+        const col = document.createElement("div"); col.style.minWidth = "0";
+        const name = document.createElement("div"); name.className = "role-name";
+        name.textContent = role === "user" ? "You" : "Dolphin";
+        const bubble = document.createElement("div"); bubble.className = "bubble";
+        bubble.innerHTML = renderMarkdown(content);
+        col.appendChild(name); col.appendChild(bubble);
+        wrap.appendChild(avatar); wrap.appendChild(col);
+        els.messages.appendChild(wrap); scrollToBottom();
+        return { wrap, bubble };
+      }
+
+      function showError(text) {
+        const div = document.createElement("div");
+        div.className = "error-msg"; div.textContent = "⚠ " + text;
+        els.messages.appendChild(div); scrollToBottom();
+      }
+
+      function setStreaming(on) { state.streaming = on; els.sendBtn.disabled = on; }
+
+      function resetChat() {
+        if (state.streaming) return;
+        state.messages = [];
+        localStorage.removeItem(LS.history);
+        els.messages.innerHTML = "";
+        els.messages.appendChild(els.emptyState);
+        els.emptyState.style.display = "";
+        setTitle("New chat");
+        els.input.focus();
+      }
+
+      function persist() { localStorage.setItem(LS.history, JSON.stringify(state.messages)); }
+
+      function setTitle(text) { els.chatTitle.innerHTML = ""; els.chatTitle.append(text + " "); const b = document.createElement("span"); b.className = "badge"; b.textContent = "browser"; els.chatTitle.appendChild(b); }
+
+      function titleFrom(msgs) {
+        const first = msgs.find((m) => m.role === "user");
+        if (!first) return "New chat";
+        return first.content.slice(0, 40) + (first.content.length > 40 ? "…" : "");
+      }
+
+      function autoGrow() {
+        els.input.style.height = "auto";
+        els.input.style.height = Math.min(els.input.scrollHeight, 200) + "px";
+      }
+      function scrollToBottom() { els.messages.scrollTop = els.messages.scrollHeight; }
+
+      function renderMarkdown(src) {
+        if (!src) return "";
+        const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const codeBlocks = [];
+        let text = src.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+          const i = codeBlocks.length;
+          codeBlocks.push("<pre><code>" + esc(code) + "</code></pre>");
+          return " CB" + i + " ";
+        });
+        text = esc(text);
+        text = text.replace(/`([^`]+)`/g, (_, c) => "<code>" + c + "</code>");
+        text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        text = text.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+        text = text.replace(/\n/g, "<br>");
+        text = text.replace(/ CB(\d+) /g, (_, i) => codeBlocks[+i]);
+        return text;
+      }
+    </script>
+  </body>
+</html>

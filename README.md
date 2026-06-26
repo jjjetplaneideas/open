@@ -12,6 +12,22 @@ model, which has a **free tier**).
 
 ![Dolphin Chat](https://img.shields.io/badge/model-Dolphin%20Mistral%2024B-2fb6d8) ![Node](https://img.shields.io/badge/node-%3E%3D18-36d0a0)
 
+## Two ways to run it
+
+| Mode | File | Needs a server? | Best for |
+| ---- | ---- | --------------- | -------- |
+| 🌐 **Browser mode** | [`standalone.html`](standalone.html) | **No** — pure client-side | Just trying it; double-click to open; hosting on GitHub Pages |
+| 🖥️ **Server mode** | [`server.js`](server.js) + `public/` | Yes — a tiny Node/Express app | Sharing with others via a single server-side key |
+
+**Browser mode is the quickest start:** open `standalone.html` in any browser
+(works from `file://`), click **⚙︎ API key**, paste your OpenRouter key, and
+chat. Everything — your key, your conversations — stays in your browser, and
+requests go **directly** to OpenRouter (which allows browser/CORS calls). There
+is no backend to run, deploy, or trust.
+
+Use **server mode** when you want to host the app for other people behind a
+single shared `OPENROUTER_API_KEY` so visitors don't each need their own.
+
 ## Features
 
 - **Token streaming** — replies appear live as the model writes them.
@@ -24,7 +40,17 @@ model, which has a **free tier**).
 - **No build step, no framework, one dependency** (Express). Plain HTML/CSS/JS.
 - **Mobile-friendly** responsive layout.
 
-## Quick start
+## Quick start — browser mode (no install)
+
+1. Download / open **`standalone.html`** in your browser.
+2. Click **⚙︎ API key** and paste a key from
+   [openrouter.ai/keys](https://openrouter.ai/keys) (free).
+3. Chat.
+
+To put it online, host that one file anywhere static — e.g. rename a copy to
+`docs/index.html` and enable **GitHub Pages** on the `docs/` folder.
+
+## Quick start — server mode
 
 Requires **Node.js 18+** (uses the built-in `fetch`).
 
