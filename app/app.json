@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Mobile AI IDE",
+    "slug": "mobile-ai-ide",
+    "version": "0.1.0",
+    "orientation": "default",
+    "userInterfaceStyle": "dark",
+    "scheme": "mobileaiide",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "dev.example.mobileaiide"
+    },
+    "android": {
+      "package": "dev.example.mobileaiide"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
