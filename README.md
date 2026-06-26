@@ -47,8 +47,21 @@ single shared `OPENROUTER_API_KEY` so visitors don't each need their own.
    [openrouter.ai/keys](https://openrouter.ai/keys) (free).
 3. Chat.
 
-To put it online, host that one file anywhere static — e.g. rename a copy to
-`docs/index.html` and enable **GitHub Pages** on the `docs/` folder.
+### Host it online with GitHub Pages
+
+A ready-to-publish copy already lives at **[`docs/index.html`](docs/index.html)**.
+To put it on the web:
+
+1. Push this repo to GitHub.
+2. Go to **Settings → Pages**.
+3. Under **Build and deployment → Source**, choose **Deploy from a branch**.
+4. Set **Branch** to your branch and the folder to **`/docs`**, then **Save**.
+5. After a minute, your app is live at
+   `https://<your-username>.github.io/<repo>/` — open it, add your OpenRouter
+   key, and chat.
+
+(`docs/index.html` is byte-for-byte identical to `standalone.html`; edit
+`standalone.html` and copy it over, or edit `docs/index.html` directly.)
 
 ## Quick start — server mode
 
