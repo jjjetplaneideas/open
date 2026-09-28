@@ -1,0 +1,14 @@
+{
+  "id": "fixture-001",
+  "input": {
+    "weather": { "tempF": 82, "windMph": 9, "windDirection": "SE", "skyCondition": "partly cloudy" },
+    "tide": { "stage": "rising", "nextChangeIso": "2026-09-28T18:42:00.000Z" },
+    "solunar": { "majorPeriods": ["06:15-08:15"], "minorPeriods": ["12:40-13:40", "19:05-20:05"] },
+    "pressure": { "inHg": 30.05, "trend": "steady" },
+    "regulations": { "species": "Spotted Seatrout", "slotLimitInches": "15-19", "dailyBagLimit": 3, "seasonOpen": true },
+    "score": { "value": 78, "label": "Good" },
+    "safety": { "state": "MONITORING", "note": null }
+  },
+  "forbiddenNumbers": ["100", "90", "12 mph", "30.5"],
+  "expectedMentions": ["78", "Good", "Spotted Seatrout", "rising"]
+}
