@@ -19,9 +19,15 @@ export interface TaskRoute {
  * production-grade infrastructure - see docs/production-limitations.md
  * before relying on it in production.
  *
- * The "mock" provider is always the last fallback for every task. It has no
- * external dependency, so the gateway is runnable end-to-end (and every unit
- * test passes) with zero configured credentials.
+ * The "mock" provider deliberately has NO entry anywhere in this table.
+ * Mock is a test/evaluation fixture, never an inference provider of last
+ * resort: if every real provider listed here fails, the request must fail
+ * with ALL_PROVIDERS_FAILED, not silently succeed with placeholder data.
+ * See docs/adr/0004-mock-is-not-a-fallback.md. The router (src/router/router.ts)
+ * has one narrow, explicitly-opt-in mechanism (ENABLE_MOCK_PROVIDER) for
+ * appending mock as a last-resort candidate in local development/tests -
+ * that mechanism is intentionally kept out of this file so the production
+ * routing table can never silently grow a mock entry by accident.
  */
 export const ROUTE_CONFIG: Record<string, TaskRoute> = {
   "talentsquad.extract_job": {
@@ -29,7 +35,6 @@ export const ROUTE_CONFIG: Record<string, TaskRoute> = {
     fallback: [
       { provider: "openai", model: "gpt-4o-mini" },
       { provider: "anthropic", model: "claude-3-5-haiku-20241022" },
-      { provider: "mock", model: "mock-structured-v1" },
     ],
   },
   "anglerj.explain_conditions": {
@@ -37,7 +42,6 @@ export const ROUTE_CONFIG: Record<string, TaskRoute> = {
     fallback: [
       { provider: "openai", model: "gpt-4o-mini" },
       { provider: "anthropic", model: "claude-3-5-haiku-20241022" },
-      { provider: "mock", model: "mock-text-v1" },
     ],
   },
 };

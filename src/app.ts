@@ -32,7 +32,9 @@ export function createApp(config: GatewayConfig): AppContext {
   const providers = buildProviderRegistry(config);
   const evaluationStore = new EvaluationStore();
   const contentLog = new ContentLog(config.FAIR_EXCHANGE_LOG_FULL_CONTENT);
-  const inferenceService = new InferenceService(providers, evaluationStore, contentLog, logger);
+  const inferenceService = new InferenceService(providers, evaluationStore, contentLog, logger, {
+    allowMockFallback: config.ENABLE_MOCK_PROVIDER,
+  });
 
   const app = express();
   app.disable("x-powered-by");

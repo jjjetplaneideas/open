@@ -11,18 +11,31 @@
 2. **Classify it honestly.** Set `safety` to the most restrictive
    classification that's actually true - see `docs/adr/0002-safety-boundary.md`.
    If the task only narrates a decision made by deterministic code elsewhere
-   (a BoltBeacon alert, a Tracking calculation, a trading risk flag), it is
-   `SAFETY_EXPLANATION_ONLY`, not `NORMAL`.
-3. **Write the prompt.** See "Adding a prompt" below.
-4. **Register the task.** Add one entry to `src/tasks/registry.ts`.
-5. **Add a routing table entry.** Add one entry to
-   `src/router/route-config.ts` - see "Switching model routes" below. A
+   (a BoltBeacon alert, a Tracking calculation, a trading risk flag, Anglerj's
+   safety state), it is `SAFETY_EXPLANATION_ONLY`, not `ADVISORY` or `NORMAL`
+   - see `anglerj.explain_conditions` for the pattern, including
+   `extractGroundingFacts` (below) so the real state is never solely
+   dependent on the model's narrative.
+3. **Keep authoritative fields out of the model's hands.** If the task has
+   any field the model must never set or change (source provenance, IDs,
+   anything from `docs/adr/0003-deterministic-provenance.md`'s category),
+   exclude it from `outputSchema`/`outputJsonSchema` entirely and attach it
+   in `postProcess(modelOutput, input)` from the validated input instead -
+   see `talentsquad.extract_job`. If the task narrates a deterministic fact
+   the application must be able to rely on independent of the model (like a
+   safety state), add `extractGroundingFacts(input)` to surface it on the
+   result as `groundingFacts`.
+4. **Write the prompt.** See "Adding a prompt" below.
+5. **Register the task.** Add one entry to `src/tasks/registry.ts`.
+6. **Add a routing table entry.** Add one entry to
+   `src/router/route-config.ts` - see "Switching model routes" below. Never
+   add a `mock` entry there - see docs/adr/0004-mock-is-not-a-fallback.md. A
    registered task with no route entry fails fast with
    `RouteNotConfiguredError` (a 500 - this is a deployment misconfiguration,
    not a client error).
-6. **Add benchmark fixtures + an assertion function** if the task should be
+7. **Add benchmark fixtures + an assertion function** if the task should be
    evaluated across models - see `docs/benchmarks.md`.
-7. **Write unit tests.** At minimum: valid input succeeds, invalid input is
+8. **Write unit tests.** At minimum: valid input succeeds, invalid input is
    rejected, and (for structured tasks) a malformed model response is
    rejected rather than silently accepted.
 
@@ -60,17 +73,21 @@ provider/model handles a task:
   fallback: [
     { provider: "openai", model: "gpt-4o-mini" },
     { provider: "anthropic", model: "claude-3-5-haiku-20241022" },
-    { provider: "mock", model: "mock-structured-v1" },
   ],
 },
 ```
 
 The router tries `primary` first, then each `fallback` entry in order,
 skipping any provider that isn't registered or isn't configured (no
-credentials). Always keep `mock` as the last fallback for tasks you want
-runnable with zero external credentials (which should be all of them, in
-V1). This is a plain data change - no application code, task definition, or
-provider adapter needs to change to move a task from one model to another.
+credentials). **Never add `mock` here** - it is a test/evaluation fixture,
+not a production fallback; if every real provider fails, the request should
+fail with `ALL_PROVIDERS_FAILED`, not silently succeed with placeholder data.
+See `docs/adr/0004-mock-is-not-a-fallback.md`. If you want the gateway
+runnable end-to-end with zero credentials for local development, set
+`ENABLE_MOCK_PROVIDER=true` instead - that is a deliberate, visible opt-in,
+never the default. Editing this file is otherwise a plain data change - no
+application code, task definition, or provider adapter needs to change to
+move a task from one model to another.
 
 If a task should be architecturally restricted to certain providers
 regardless of the routing table (e.g. a future `HIGH_RISK` task limited to

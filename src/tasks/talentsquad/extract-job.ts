@@ -43,13 +43,36 @@ export const ExtractJobInputSchema = z.object({
 export type ExtractJobInput = z.infer<typeof ExtractJobInputSchema>;
 
 /**
- * The normalized job record. Every extracted field is nullable rather than
- * defaulted to an empty string, so "not present in source" is representable
- * and distinguishable from an extracted empty value. `inferredFields` lists
- * any field the model derived rather than copied verbatim - an empty array
- * means every non-null field came straight from the source text.
+ * Closed set of fields the model is permitted to *derive* rather than copy
+ * verbatim (e.g. normalizing "$18-22/hr" into compensation.min/max, or
+ * inferring employmentType from wording like "seasonal dockhand" - both
+ * called out explicitly in the extraction prompt). This is intentionally
+ * conservative: title/employer/department/description/requirements/location
+ * are NOT on this list, so the model has no license to "infer" them - they
+ * must be extracted verbatim or left null. Source-provenance fields
+ * (sourceUrl/sourceTimestamp/sourceConfidence) are not on this list either,
+ * and in fact are not part of the model's output schema at all - see
+ * docs/adr/0003-deterministic-provenance.md. Extend this enum deliberately;
+ * do not widen it just to make a validation error go away.
  */
-export const ExtractedJobSchema = z.object({
+export const InferableFieldSchema = z.enum([
+  "employmentType",
+  "compensation.min",
+  "compensation.max",
+  "compensation.currency",
+  "compensation.period",
+]);
+export type InferableField = z.infer<typeof InferableFieldSchema>;
+
+/**
+ * What the MODEL is asked to produce and what gets schema-validated against
+ * the provider's raw response. Deliberately excludes sourceUrl/
+ * sourceTimestamp/sourceConfidence: those are Talent Squad's authoritative
+ * source-record fields, and the model must be structurally incapable of
+ * setting or changing them, not merely instructed not to - see
+ * `extractJobTask.postProcess` below and docs/adr/0003-deterministic-provenance.md.
+ */
+export const ModelExtractedJobSchema = z.object({
   title: z.string().nullable(),
   employer: z.string().nullable(),
   location: z.object({
@@ -60,96 +83,114 @@ export const ExtractedJobSchema = z.object({
   department: z.string().nullable(),
   employmentType: EmploymentTypeSchema,
   description: z.string().nullable(),
-  sourceUrl: z.string().url(),
-  sourceTimestamp: z.string().datetime().nullable(),
   compensation: CompensationSchema,
   requirements: z.array(z.string()),
+  /** Must reference only fields in InferableFieldSchema - arbitrary strings are rejected, not merely discouraged. */
+  inferredFields: z.array(InferableFieldSchema),
+});
+export type ModelExtractedJob = z.infer<typeof ModelExtractedJobSchema>;
+
+/**
+ * The final result returned to callers: the model's extraction plus
+ * authoritative provenance attached deterministically in `postProcess`,
+ * never by the model. Every field here that also appears in
+ * ModelExtractedJobSchema is model-controlled; sourceUrl/sourceTimestamp/
+ * sourceConfidence are gateway-controlled and always mirror the validated
+ * input exactly, regardless of what the model output.
+ */
+export const ExtractedJobSchema = ModelExtractedJobSchema.extend({
+  sourceUrl: z.string().url(),
+  sourceTimestamp: z.string().datetime().nullable(),
   sourceConfidence: SourceConfidenceSchema,
-  /** Field names (dot-path) that were inferred rather than extracted verbatim. Must reference real field names. */
-  inferredFields: z.array(z.string()),
 });
 export type ExtractedJob = z.infer<typeof ExtractedJobSchema>;
 
-export const extractJobTask: TaskDefinition<ExtractJobInput, ExtractedJob> = {
+const MODEL_OUTPUT_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "title",
+    "employer",
+    "location",
+    "department",
+    "employmentType",
+    "description",
+    "compensation",
+    "requirements",
+    "inferredFields",
+  ],
+  properties: {
+    title: { type: ["string", "null"] },
+    employer: { type: ["string", "null"] },
+    location: {
+      type: "object",
+      additionalProperties: false,
+      required: ["propertyName", "city", "state"],
+      properties: {
+        propertyName: { type: ["string", "null"] },
+        city: { type: ["string", "null"] },
+        state: { type: ["string", "null"] },
+      },
+    },
+    department: { type: ["string", "null"] },
+    employmentType: {
+      type: "string",
+      enum: ["full_time", "part_time", "seasonal", "contract", "internship", "unknown"],
+    },
+    description: { type: ["string", "null"] },
+    compensation: {
+      type: "object",
+      additionalProperties: false,
+      required: ["present", "raw", "min", "max", "currency", "period"],
+      properties: {
+        present: { type: "boolean" },
+        raw: { type: ["string", "null"] },
+        min: { type: ["number", "null"] },
+        max: { type: ["number", "null"] },
+        currency: { type: ["string", "null"] },
+        period: { type: ["string", "null"], enum: ["hour", "year", "shift", "unknown", null] },
+      },
+    },
+    requirements: { type: "array", items: { type: "string" } },
+    inferredFields: {
+      type: "array",
+      items: {
+        type: "string",
+        enum: ["employmentType", "compensation.min", "compensation.max", "compensation.currency", "compensation.period"],
+      },
+    },
+  },
+} as const satisfies Record<string, unknown>;
+
+export const extractJobTask: TaskDefinition<ExtractJobInput, ExtractedJob, ModelExtractedJob> = {
   id: "talentsquad.extract_job",
   description:
     "Extracts a normalized job listing from raw hospitality job-posting text without fabricating missing facts.",
   modality: "text",
   structuredOutput: true,
   inputSchema: ExtractJobInputSchema,
-  outputSchema: ExtractedJobSchema,
-  outputJsonSchema: {
-    type: "object",
-    additionalProperties: false,
-    required: [
-      "title",
-      "employer",
-      "location",
-      "department",
-      "employmentType",
-      "description",
-      "sourceUrl",
-      "sourceTimestamp",
-      "compensation",
-      "requirements",
-      "sourceConfidence",
-      "inferredFields",
-    ],
-    properties: {
-      title: { type: ["string", "null"] },
-      employer: { type: ["string", "null"] },
-      location: {
-        type: "object",
-        additionalProperties: false,
-        required: ["propertyName", "city", "state"],
-        properties: {
-          propertyName: { type: ["string", "null"] },
-          city: { type: ["string", "null"] },
-          state: { type: ["string", "null"] },
-        },
-      },
-      department: { type: ["string", "null"] },
-      employmentType: {
-        type: "string",
-        enum: ["full_time", "part_time", "seasonal", "contract", "internship", "unknown"],
-      },
-      description: { type: ["string", "null"] },
-      sourceUrl: { type: "string", format: "uri" },
-      sourceTimestamp: { type: ["string", "null"], format: "date-time" },
-      compensation: {
-        type: "object",
-        additionalProperties: false,
-        required: ["present", "raw", "min", "max", "currency", "period"],
-        properties: {
-          present: { type: "boolean" },
-          raw: { type: ["string", "null"] },
-          min: { type: ["number", "null"] },
-          max: { type: ["number", "null"] },
-          currency: { type: ["string", "null"] },
-          period: { type: ["string", "null"], enum: ["hour", "year", "shift", "unknown", null] },
-        },
-      },
-      requirements: { type: "array", items: { type: "string" } },
-      sourceConfidence: {
-        type: "string",
-        enum: [
-          "VERIFIED_RECENT",
-          "VERIFIED_AGING",
-          "STALE",
-          "CLOSED",
-          "SOURCE_UNAVAILABLE",
-          "RECONCILIATION_HOLD",
-        ],
-      },
-      inferredFields: { type: "array", items: { type: "string" } },
-    },
-  },
+  outputSchema: ModelExtractedJobSchema,
+  outputJsonSchema: MODEL_OUTPUT_JSON_SCHEMA,
+  /**
+   * The model never sees or returns sourceUrl/sourceTimestamp/sourceConfidence
+   * (they're excluded from its schema entirely), so there is nothing for it
+   * to get wrong, omit, or tamper with. They are attached here from the
+   * already-validated input - deterministic code, not a model instruction -
+   * which is the actual trust boundary. Merge order matters: these three
+   * keys are spread last specifically so they always win.
+   */
+  postProcess: (modelOutput, input) => ({
+    ...modelOutput,
+    sourceUrl: input.sourceUrl,
+    sourceTimestamp: input.sourceTimestamp,
+    sourceConfidence: input.sourceConfidence,
+  }),
   latency: "balanced",
   cost: "balanced",
   quality: "standard",
   safety: "NORMAL",
   timeoutMs: 20_000,
   maxOutputTokens: 1_200,
-  promptId: "talentsquad.extract-job.v1",
+  promptId: "talentsquad.extract-job.v2",
   maxRepairAttempts: 1,
 };

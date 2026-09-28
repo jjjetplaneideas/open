@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { loadConfig } from "../src/config/env.js";
 import { InferenceService } from "../src/inference/inference-service.js";
 import { GatewayError } from "../src/inference/errors.js";
+import { MockProvider } from "../src/providers/mock/mock-provider.js";
 import { buildProviderRegistry } from "../src/providers/registry.js";
 import { getRoute } from "../src/router/route-config.js";
 import { getTask, listTasks } from "../src/tasks/registry.js";
@@ -78,6 +79,14 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const config = loadConfig();
   const providers = buildProviderRegistry(config);
+  // Mock is never part of a task's production route (see route-config.ts), so
+  // it never shows up here via buildProviderRegistry unless ENABLE_MOCK_PROVIDER
+  // is set. The benchmark harness is an explicit-selection context - `--models
+  // mock/...` should always work regardless of that flag - so it's added here
+  // unconditionally, independent of production config.
+  if (!providers.has("mock")) {
+    providers.set("mock", new MockProvider());
+  }
   const evaluationStore = new EvaluationStore();
   const contentLog = new ContentLog(false);
   const logger = new Logger("warn");

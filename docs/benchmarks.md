@@ -5,6 +5,16 @@ design brief asked for directly: which model is best for job extraction,
 which is cheapest, which follows the JSON schema most reliably, which is
 fastest, which gives the best Anglerj explanations, which hallucinates least.
 
+**Current status: the harness works, the fixtures don't yet prove a winner.**
+There are two fixtures per task today - enough to prove the harness itself is
+correct end-to-end (loads fixtures, drives every candidate, scores per-field
+correctness, writes results), not enough to declare a production model
+winner. Do not treat today's benchmark output as a production model
+recommendation. See `docs/production-limitations.md#model-benchmarking` and
+"Adding a fixture" below - real, representative Talent Squad and Anglerj
+fixtures are the next step before this harness's results should drive a
+production routing decision.
+
 It runs the same fixed set of **fixtures** through every configured
 **candidate** (provider/model) for a task, bypassing the router's fallback
 logic (each candidate is tested in isolation via
@@ -14,13 +24,20 @@ doesn't hide behind another provider succeeding).
 ## Running it
 
 ```bash
-npm run benchmark                                     # every task, every configured candidate
+npm run benchmark                                     # every task, every configured REAL candidate
 npm run benchmark -- --task talentsquad.extract_job   # one task
 npm run benchmark -- --models openai/gpt-4o-mini,nvidia-nim/meta/llama-3.1-70b-instruct
+npm run benchmark -- --models mock/mock-structured-v1 # explicitly exercise the mock fixture
 ```
 
 Candidates without configured credentials are skipped with a note, so you can
 leave this command as-is regardless of which providers you have keys for.
+The default candidate list (no `--models`) comes straight from
+`route-config.ts`, which never lists `mock` - see
+`docs/adr/0004-mock-is-not-a-fallback.md`. Mock is always reachable via an
+explicit `--models mock/...`, regardless of `ENABLE_MOCK_PROVIDER`, since
+asking for it by name is exactly the "benchmark run that explicitly selects
+it" carve-out.
 
 ## Reading the output
 
@@ -30,7 +47,6 @@ A summary table prints to stdout:
 provider/model                          runs  success%  schemaValid%  avgLatencyMs  avgScore%
 nvidia-nim/meta/llama-3.1-70b-instruct   2     100%      100%          812           92%
 openai/gpt-4o-mini                       2     100%      100%          640           88%
-mock/mock-structured-v1                  2     100%      100%          1             38%
 ```
 
 - **success%** - the call completed without a provider/timeout error.

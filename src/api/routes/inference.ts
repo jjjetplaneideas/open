@@ -48,6 +48,7 @@ export function createInferenceRouter(inferenceService: InferenceService, expose
         schemaValid: result.schemaValid,
         latencyMs: result.latencyMs,
         ...(result.safetyDisclaimer ? { safetyDisclaimer: result.safetyDisclaimer } : {}),
+        ...(result.groundingFacts ? { groundingFacts: result.groundingFacts } : {}),
       });
     } catch (error) {
       next(error);

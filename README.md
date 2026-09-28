@@ -32,15 +32,19 @@ cp .env.example .env
 npm run dev
 ```
 
-No provider credentials are required to run it - a `mock` provider is always
-available and is the last fallback for every task. See
-`docs/running-locally.md`.
+The server boots and answers `/health` with zero provider credentials, but a
+real `/v1/inference` call needs at least one real provider configured (or
+`ENABLE_MOCK_PROVIDER=true` for local development) - mock is a test fixture,
+never an automatic production fallback. See `docs/running-locally.md` and
+`docs/adr/0004-mock-is-not-a-fallback.md`.
 
 ## Documentation
 
 - [`docs/architecture.md`](docs/architecture.md) - how a request flows through the system, module map, routing, safety boundary, privacy/logging
 - [`docs/adr/0001-task-not-model.md`](docs/adr/0001-task-not-model.md) - why applications request tasks, not models
 - [`docs/adr/0002-safety-boundary.md`](docs/adr/0002-safety-boundary.md) - why the gateway never becomes the source of truth for a safety decision
+- [`docs/adr/0003-deterministic-provenance.md`](docs/adr/0003-deterministic-provenance.md) - why authoritative fields are attached in code, never trusted from the model
+- [`docs/adr/0004-mock-is-not-a-fallback.md`](docs/adr/0004-mock-is-not-a-fallback.md) - why mock can never silently service a production request
 - [`docs/adding-a-provider.md`](docs/adding-a-provider.md)
 - [`docs/adding-a-task.md`](docs/adding-a-task.md) - adding a task, a prompt, switching model routes
 - [`docs/running-locally.md`](docs/running-locally.md) - setup, running the server, tests, credentials
@@ -50,8 +54,9 @@ available and is the last fallback for every task. See
 ## Status (V1)
 
 - **Providers**: NVIDIA NIM (first experimental/open-model provider), OpenAI,
-  Anthropic, and a credential-free `mock` provider used as the universal
-  fallback and by the default test suite.
+  Anthropic, and a credential-free `mock` provider used only by the default
+  test suite and explicit benchmark/dev opt-in - never an automatic
+  production fallback (`ENABLE_MOCK_PROVIDER`, default off everywhere).
 - **Tasks**: `talentsquad.extract_job` (structured job-listing extraction) and
   `anglerj.explain_conditions` (grounded fact explanation).
 - **Benchmark harness**: `npm run benchmark` - runs fixtures through every

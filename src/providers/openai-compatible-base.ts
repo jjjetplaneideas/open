@@ -16,6 +16,9 @@ interface OpenAICompatibleConfig {
   extraHeaders?: Record<string, string>;
 }
 
+/** Short timeout for the health-check probe only - independent of any task's timeoutMs, since GET /ready should stay fast even if a provider is slow to respond. */
+const HEALTH_CHECK_TIMEOUT_MS = 5_000;
+
 /**
  * Base implementation shared by any provider exposing an OpenAI-compatible
  * `/chat/completions` endpoint (OpenAI itself, and NVIDIA NIM, which
@@ -42,11 +45,42 @@ export class OpenAICompatibleProvider implements AIProvider {
     return this.apiKey.length > 0;
   }
 
+  /**
+   * `healthy: true` means a live GET to this provider's models-list endpoint
+   * just succeeded - it is evidence of current reachability, not merely that
+   * an API key is present (that is `isConfigured()`, reported separately by
+   * callers - see src/api/routes/health.ts). This deliberately avoids a real
+   * completion/generation call: listing models costs no tokens and is one of
+   * the cheapest authenticated endpoints most OpenAI-compatible APIs expose.
+   * Not cached - see docs/production-limitations.md if GET /ready is polled
+   * often enough for this to matter.
+   */
   async healthCheck(): Promise<HealthStatus> {
     if (!this.isConfigured()) {
       return { healthy: false, reason: "no API key configured" };
     }
-    return { healthy: true };
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(`${this.baseUrl}/models`, {
+        method: "GET",
+        headers: { authorization: `Bearer ${this.apiKey}`, ...this.extraHeaders },
+        signal: controller.signal,
+      });
+      if (response.ok) {
+        return { healthy: true };
+      }
+      return { healthy: false, reason: `models endpoint returned HTTP ${response.status}` };
+    } catch (error) {
+      if (controller.signal.aborted) {
+        return { healthy: false, reason: `connectivity check timed out after ${HEALTH_CHECK_TIMEOUT_MS}ms` };
+      }
+      return { healthy: false, reason: `connectivity check failed: ${(error as Error).message}` };
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   async generate(options: GenerateOptions): Promise<GenerateResult> {

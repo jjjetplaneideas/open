@@ -126,6 +126,22 @@ export class RouteNotConfiguredError extends GatewayError {
   }
 }
 
+/**
+ * A bug or bad deployment configuration inside the gateway itself - e.g. a
+ * task declares structuredOutput but has no outputSchema wired up. This is
+ * never the client's fault and never a transient provider problem, so it
+ * must fail loudly (surface as a 500, stop the candidate loop immediately)
+ * rather than being absorbed as "just another failed candidate" - see
+ * `isFailoverEligible` and docs/architecture.md#failover-classification.
+ */
+export class InternalConfigurationError extends GatewayError {
+  readonly code = "INTERNAL_CONFIGURATION_ERROR";
+  readonly httpStatus = 500;
+  constructor(message: string) {
+    super(message);
+  }
+}
+
 export class AllProvidersFailedError extends GatewayError {
   readonly code = "ALL_PROVIDERS_FAILED";
   readonly httpStatus = 502;
@@ -143,4 +159,21 @@ export function toClientSafeError(error: unknown): { code: string; httpStatus: n
     return { code: error.code, httpStatus: error.httpStatus, message: error.message };
   }
   return { code: "INTERNAL_ERROR", httpStatus: 500, message: "An internal error occurred." };
+}
+
+/**
+ * Decides whether a candidate's failure is the kind that justifies trying
+ * the next provider/model, or a bug/misconfiguration that must fail loudly
+ * instead. Failover is appropriate for candidate-specific problems: an
+ * upstream outage, a timeout, a rate limit, a provider/model rejecting the
+ * request (a different candidate may still succeed), or a candidate
+ * exhausting its own schema-repair attempts. It is NOT appropriate for an
+ * internal/configuration defect (`InternalConfigurationError`) or any other
+ * unexpected error the gateway doesn't recognize as provider-related -
+ * those must propagate immediately so they surface as a loud 500 instead of
+ * being silently indistinguishable from a normal provider outage. See
+ * InferenceService.run() and docs/architecture.md#failover-classification.
+ */
+export function isFailoverEligible(error: unknown): boolean {
+  return error instanceof ProviderError || error instanceof SchemaValidationError;
 }

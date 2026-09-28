@@ -19,6 +19,14 @@ of what's intentionally deferred:
   skip a provider that's currently down - every request re-discovers a dead
   provider via a failed call. A real circuit breaker (open/half-open/closed)
   is a reasonable V2 addition to `src/router/`.
+- **No caching on health probes.** Each `GET /ready` call re-runs a live,
+  uncached connectivity probe (a models-list GET) against every provider a
+  registered task's route depends on - see "Correct provider health check
+  semantics" below. A deployment polling `/ready` very frequently (e.g. an
+  aggressive Kubernetes readiness probe interval) will generate a
+  corresponding rate of lightweight provider calls. Add a short TTL cache
+  in front of `healthCheck()` if this becomes a concern; V1 keeps it simple
+  and always-fresh instead.
 
 ## NVIDIA NIM specifically
 
@@ -74,6 +82,44 @@ when you want real cost comparisons out of the benchmark harness.
 future catch-photo analysis is the most likely first real user. Wire it up
 the same way as the two existing tasks once there's a concrete input/output
 shape to validate against.
+
+## Provider health checks
+
+`healthCheck()` performs one lightweight, unauthenticated-cost GET to the
+provider's models-list endpoint (see `docs/architecture.md#readiness-and-health-semantics`).
+This is real evidence of reachability, not a guess, but it is still only a
+model-listing call - it does not prove that a specific model is available,
+that generation/completion requests will succeed, or that the account has
+sufficient quota for real traffic. Treat `healthy: true` as "the provider is
+reachable and the key is valid," not as "the next inference call is
+guaranteed to succeed."
+
+## Anglerj safety-state contract
+
+`AnglerjSafetyStateSchema` (`src/tasks/anglerj/explain-conditions.ts`) is
+currently a bounded string, not Anglerj's real closed enum - that enum isn't
+available in this repository. This means the gateway will currently accept
+*any* short string as a safety state, including a typo or a value Anglerj's
+real system would never produce. This is a deliberate, documented trade-off
+(see `docs/adr/0003-deterministic-provenance.md`) rather than an oversight:
+inventing a plausible-but-wrong enum here would risk silently rejecting a
+real Anglerj safety state at runtime, which is worse. Replace this schema
+with the real enum as soon as it's available to this repo or its build
+(a shared package, a generated client from an OpenAPI/JSON-Schema contract,
+or a contract test against Anglerj's actual output).
+
+## Model benchmarking
+
+The two fixtures per task under `benchmark/fixtures/` prove the benchmark
+harness itself works end-to-end (loads fixtures, runs every configured
+candidate, scores per-field correctness, writes results) - they do not
+constitute a production-quality model comparison. Two fixtures is not a
+representative sample for choosing a production model for either
+`talentsquad.extract_job` or `anglerj.explain_conditions`. Before using this
+harness's output to pick a production model, feed it real, representative
+Talent Squad and Anglerj fixtures (dozens to hundreds, covering edge cases
+like missing compensation, ambiguous employment type, closed seasons,
+elevated safety states) - see `docs/benchmarks.md#adding-a-fixture`.
 
 ## Retry policy
 

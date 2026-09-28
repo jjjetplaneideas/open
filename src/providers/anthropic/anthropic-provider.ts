@@ -28,6 +28,8 @@ interface AnthropicResponse {
 }
 
 const STRUCTURED_TOOL_NAME = "emit_structured_result";
+/** Short timeout for the health-check probe only - independent of any task's timeoutMs. */
+const HEALTH_CHECK_TIMEOUT_MS = 5_000;
 
 /**
  * Anthropic's Messages API has a different wire format than OpenAI's, so
@@ -52,11 +54,40 @@ export class AnthropicProvider implements AIProvider {
     return this.apiKey.length > 0;
   }
 
+  /**
+   * `healthy: true` means a live GET to Anthropic's models-list endpoint
+   * just succeeded - evidence of current reachability, not merely that an
+   * API key is present (that is `isConfigured()`, reported separately - see
+   * src/api/routes/health.ts). Deliberately avoids a real Messages
+   * (completion) call, which would cost tokens. Not cached - see
+   * docs/production-limitations.md.
+   */
   async healthCheck(): Promise<HealthStatus> {
     if (!this.isConfigured()) {
       return { healthy: false, reason: "no API key configured" };
     }
-    return { healthy: true };
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(`${this.baseUrl}/models`, {
+        method: "GET",
+        headers: { "x-api-key": this.apiKey, "anthropic-version": this.version },
+        signal: controller.signal,
+      });
+      if (response.ok) {
+        return { healthy: true };
+      }
+      return { healthy: false, reason: `models endpoint returned HTTP ${response.status}` };
+    } catch (error) {
+      if (controller.signal.aborted) {
+        return { healthy: false, reason: `connectivity check timed out after ${HEALTH_CHECK_TIMEOUT_MS}ms` };
+      }
+      return { healthy: false, reason: `connectivity check failed: ${(error as Error).message}` };
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   async generate(options: GenerateOptions): Promise<GenerateResult> {

@@ -57,12 +57,14 @@ export const assessExtractJob: AssertionFn<ExtractJobInput, ExtractedJob> = (fix
 
   const mustNotInferFields = (expected.mustNotInferFields as string[] | undefined) ?? [];
   for (const field of mustNotInferFields) {
-    check(`${field} not inferred`, !output.inferredFields.includes(field));
+    check(`${field} not inferred`, !(output.inferredFields as string[]).includes(field));
   }
 
-  // Always-on grounding check: the model must never alter provenance fields it was given verbatim.
-  check("sourceUrl unchanged", output.sourceUrl === fixture.input.sourceUrl);
-  check("sourceConfidence passthrough", output.sourceConfidence === fixture.input.sourceConfidence);
+  // Note: sourceUrl/sourceTimestamp/sourceConfidence are NOT scored here.
+  // They are attached deterministically by the gateway (extractJobTask.postProcess),
+  // never by the model, so they are always correct by construction and are not
+  // a meaningful signal about model quality - see tests/unit/provenance.test.ts
+  // for the regression coverage that actually matters for those fields.
 
   return { score, maxScore, details };
 };

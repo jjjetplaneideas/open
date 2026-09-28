@@ -29,6 +29,17 @@ const EnvSchema = z.object({
   GATEWAY_EXPOSE_PROVIDER_INFO: boolEnv(true),
   FAIR_EXCHANGE_LOG_FULL_CONTENT: boolEnv(false),
 
+  /**
+   * Mock is a test/evaluation fixture, never a production inference
+   * provider of last resort. Defaults to false everywhere, including local
+   * development - set it explicitly to true only when you want the "mock"
+   * provider to exist in the registry and be eligible as a last-resort
+   * fallback (see ENABLE_MOCK_PROVIDER in router.ts's allowMockFallback).
+   * The benchmark harness does not need this flag: it can always target
+   * mock explicitly regardless of this setting.
+   */
+  ENABLE_MOCK_PROVIDER: boolEnv(false),
+
   NVIDIA_NIM_API_KEY: z.string().optional().default(""),
   NVIDIA_NIM_BASE_URL: z.string().default("https://integrate.api.nvidia.com/v1"),
 

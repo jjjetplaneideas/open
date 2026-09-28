@@ -45,18 +45,22 @@ POST /v1/inference { task, input, metadata }
 4. Prompt rendering                src/prompts                  - versioned, not inline in application code
     │
     ▼
-5. Router: candidate resolution    src/router                   - primary, then fallback, in order
+5. Router: candidate resolution    src/router                   - primary, then fallback, in order; mock never included by default
     │
     ▼
 6. Provider call (per candidate)   src/providers                - generate() or generateStructured()
     │       │
     │       ├─ structured task: JSON-Schema/Zod validate → repair retry (bounded) → accept or fail
-    │       └─ on failure: record attempt, try next candidate
+    │       ├─ provider/timeout/rate-limit/schema-exhausted failure: record attempt, try next candidate
+    │       └─ internal/configuration error: fail loudly immediately, no failover - see "Failover classification" below
     ▼
-7. Telemetry record                src/telemetry/evaluation-store.ts
+7. Deterministic post-processing   task.postProcess / task.extractGroundingFacts - attaches authoritative fields the model never controlled
     │
     ▼
-Response { requestId, task, result, provider?, model?, promptVersion, schemaValid, latencyMs }
+8. Telemetry record                src/telemetry/evaluation-store.ts
+    │
+    ▼
+Response { requestId, task, result, provider?, model?, promptVersion, schemaValid, latencyMs, groundingFacts? }
 ```
 
 Every layer above is independently testable and swappable. That is the point.
@@ -67,7 +71,7 @@ Every layer above is independently testable and swappable. That is the point.
 |---|---|---|
 | Task registry (what a task *is*) | `src/tasks/` | Zod input/output schemas, safety class, latency/cost/quality preferences. No model names. |
 | Model routing (which model handles it *right now*) | `src/router/route-config.ts` | The one file to edit to change models. Deliberately separate from task definitions - see "Routing" below. |
-| Provider adapters | `src/providers/` | Implement the shared `AIProvider` interface. `mock` always works with zero credentials. |
+| Provider adapters | `src/providers/` | Implement the shared `AIProvider` interface. `mock` is a test/evaluation fixture - never in production's registry or routing table by default. See "Mock is not a fallback" below. |
 | Prompts | `src/prompts/` | Versioned (`.v1`, `.v2`, ...). Every inference record carries the exact prompt version used. |
 | Schema validation | `src/schema/validate.ts` | Parses + Zod-validates; never accepts "looks like JSON". Bounded repair retry. |
 | Orchestration | `src/inference/inference-service.ts` | Ties registry, router, prompts, providers, schema, and telemetry together. |
@@ -101,6 +105,56 @@ instruction not to build "an opaque AI system to choose another AI model."
 Smarter routing (real-time health/cost/latency-aware selection) is a
 reasonable V2, but it should stay legible: a person should always be able to
 explain why a given request went where it went.
+
+## Failover classification
+
+Not every candidate failure should try the next provider. `isFailoverEligible`
+(`src/inference/errors.ts`) draws the line: a `ProviderError` (upstream
+outage, timeout, rate limit, or a provider/model rejecting the request - a
+different candidate may still succeed) or a `SchemaValidationError` (a
+candidate exhausted its own repair attempts) is failover-appropriate.
+Anything else - an `InternalConfigurationError` (a registered task is
+misconfigured, e.g. missing its output schema) or any other error the
+gateway doesn't recognize as provider-related - propagates immediately and
+aborts the candidate loop. The reasoning: silently trying the next provider
+on a gateway bug makes that bug indistinguishable from a normal outage, and
+it can burn through every configured provider's rate limit trying to route
+around a problem that no provider swap will ever fix. See
+`InferenceService.run()` and `tests/unit/failover-classification.test.ts`.
+
+## Mock is not a fallback
+
+`mock` is a credential-free test/evaluation fixture, not an inference
+provider of last resort. It has **no entry anywhere** in
+`src/router/route-config.ts`, is only constructed into the provider registry
+when `ENABLE_MOCK_PROVIDER=true` (`src/providers/registry.ts`), and is only
+ever appended as a fallback candidate when a caller explicitly opts in via
+`InferenceService`'s `allowMockFallback` option - which the HTTP API only
+sets from that same env var. With the default configuration (everywhere,
+including local development), if every real provider in a task's route fails
+or is unconfigured, the request fails with `ALL_PROVIDERS_FAILED` (502) - it
+never silently succeeds with placeholder data. The benchmark harness is the
+one place mock is always reachable, via explicit `--models mock/...`
+selection, which is a deliberate ask for mock by name, not an automatic
+fallback. See `docs/adr/0004-mock-is-not-a-fallback.md`.
+
+## Deterministic provenance and grounding facts
+
+Two related hooks on `TaskDefinition` (`src/tasks/types.ts`) keep specific
+facts out of the model's control entirely, rather than merely instructing
+the model not to touch them:
+
+- **`postProcess(modelOutput, input)`** runs after the model's raw output
+  passes schema validation. Talent Squad's `sourceUrl`/`sourceTimestamp`/
+  `sourceConfidence` are not even in the model's output schema - they are
+  attached here from the validated request input, in deterministic code.
+  See `docs/adr/0003-deterministic-provenance.md`.
+- **`extractGroundingFacts(input)`** computes facts the application should
+  treat as authoritative, surfaced on the result as `groundingFacts`
+  alongside the model's narrative. Anglerj's `explain_conditions` uses this
+  to return the real `safety`/`score` values independent of whatever the
+  narrative text says - so an application never has to trust the model to
+  have correctly restated a safety-critical value.
 
 ## Why NVIDIA NIM first
 
@@ -141,6 +195,23 @@ check exactly this: does the explanation mention the facts it was given, and
 does it avoid stating numbers/facts that were never in the payload. This is
 the "fact explanation vs. fact generation" distinction from the design brief.
 
+It is classified `SAFETY_EXPLANATION_ONLY` (not `ADVISORY`): the payload
+includes `safety.state`/`safety.note`, a determination deterministic Anglerj
+logic already made, and this task narrates it. `extractGroundingFacts`
+surfaces the real `safety`/`score` values on every result independent of the
+narrative - see "Deterministic provenance and grounding facts" above - so
+user safety never depends on whether the model's prose correctly restated
+the state.
+
+`safety.state`'s Zod schema (`AnglerjSafetyStateSchema` in
+`src/tasks/anglerj/explain-conditions.ts`) is a bounded string, not a closed
+enum - Anglerj's real safety-state vocabulary is owned by the Anglerj
+application and isn't available in this repository, and hardcoding
+plausible-but-wrong labels here would be worse than an open contract. This
+is an explicit, documented placeholder - see
+`docs/adr/0003-deterministic-provenance.md` - and should be replaced with the
+real enum once it's available to this repo.
+
 ## Safety boundary
 
 `SafetyClassification` (`src/types/index.ts`) has four levels: `NORMAL`,
@@ -153,8 +224,30 @@ navigation math, and trading's risk/execution controls, none of which are
 implemented as gateway tasks in V1 (see "Roadmap" below) - but if/when they
 are, this is the boundary they must respect. The gateway must never become the
 source of truth for a safety decision made by deterministic application code.
+`anglerj.explain_conditions` is the first task classified
+`SAFETY_EXPLANATION_ONLY`, and `extractGroundingFacts` is the concrete
+mechanism keeping the real safety state available independent of the model.
 
 See `docs/adr/0002-safety-boundary.md`.
+
+## Readiness and health semantics
+
+`/health` is pure liveness - the process is up. `/ready`
+(`src/api/routes/health.ts`) means something more specific: does every
+registered task currently have at least one **real** (non-mock) configured
+provider in its route? A non-empty task registry alone no longer implies
+readiness. Mock is never counted toward readiness under any configuration -
+see `isTaskRoutableWithRealProviders` in `src/router/router.ts`.
+
+Per-provider health is reported separately from configuration: `configured`
+means credentials are present; `healthy` means a live, cheap connectivity
+probe (a GET to the provider's models-list endpoint - no tokens spent, no
+completion call made) succeeded just now. The two are deliberately distinct
+fields, because an API key existing is not evidence that the provider is
+currently reachable. The overall ready/not_ready verdict is based on the
+*configured*-route bar, not live health, so `/ready` doesn't flap on a
+transient network blip while a provider is still genuinely configured and
+likely to recover before the next retry.
 
 ## Privacy and logging
 
