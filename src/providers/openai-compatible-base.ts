@@ -1,4 +1,5 @@
 import { ProviderError, ProviderNotConfiguredError, ProviderTimeoutError } from "../inference/errors.js";
+import { safeParseModelIds } from "./model-list.js";
 import type {
   AIProvider,
   GenerateMultimodalOptions,
@@ -52,8 +53,11 @@ export class OpenAICompatibleProvider implements AIProvider {
    * callers - see src/api/routes/health.ts). This deliberately avoids a real
    * completion/generation call: listing models costs no tokens and is one of
    * the cheapest authenticated endpoints most OpenAI-compatible APIs expose.
-   * Not cached - see docs/production-limitations.md if GET /ready is polled
-   * often enough for this to matter.
+   * The same response also populates `availableModels`, which GET /ready
+   * uses to catch a routed model that has been retired - see
+   * src/router/router.ts#classifyModelAvailability. Not cached - see
+   * docs/production-limitations.md if GET /ready is polled often enough for
+   * this to matter.
    */
   async healthCheck(): Promise<HealthStatus> {
     if (!this.isConfigured()) {
@@ -70,7 +74,7 @@ export class OpenAICompatibleProvider implements AIProvider {
         signal: controller.signal,
       });
       if (response.ok) {
-        return { healthy: true };
+        return { healthy: true, availableModels: await safeParseModelIds(response) };
       }
       return { healthy: false, reason: `models endpoint returned HTTP ${response.status}` };
     } catch (error) {

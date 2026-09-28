@@ -1,4 +1,5 @@
 import { ProviderError, ProviderNotConfiguredError, ProviderTimeoutError } from "../../inference/errors.js";
+import { safeParseModelIds } from "../model-list.js";
 import type {
   AIProvider,
   ChatMessage,
@@ -59,8 +60,10 @@ export class AnthropicProvider implements AIProvider {
    * just succeeded - evidence of current reachability, not merely that an
    * API key is present (that is `isConfigured()`, reported separately - see
    * src/api/routes/health.ts). Deliberately avoids a real Messages
-   * (completion) call, which would cost tokens. Not cached - see
-   * docs/production-limitations.md.
+   * (completion) call, which would cost tokens. The same response populates
+   * `availableModels`, which GET /ready uses to catch a routed model that
+   * has been retired - see src/router/router.ts#classifyModelAvailability.
+   * Not cached - see docs/production-limitations.md.
    */
   async healthCheck(): Promise<HealthStatus> {
     if (!this.isConfigured()) {
@@ -77,7 +80,7 @@ export class AnthropicProvider implements AIProvider {
         signal: controller.signal,
       });
       if (response.ok) {
-        return { healthy: true };
+        return { healthy: true, availableModels: await safeParseModelIds(response) };
       }
       return { healthy: false, reason: `models endpoint returned HTTP ${response.status}` };
     } catch (error) {

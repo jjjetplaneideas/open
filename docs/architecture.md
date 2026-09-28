@@ -234,20 +234,40 @@ See `docs/adr/0002-safety-boundary.md`.
 
 `/health` is pure liveness - the process is up. `/ready`
 (`src/api/routes/health.ts`) means something more specific: does every
-registered task currently have at least one **real** (non-mock) configured
-provider in its route? A non-empty task registry alone no longer implies
-readiness. Mock is never counted toward readiness under any configuration -
-see `isTaskRoutableWithRealProviders` in `src/router/router.ts`.
+registered task currently have at least one **real** (non-mock) candidate
+whose provider is configured *and* whose specific routed model isn't
+confirmed retired? A non-empty task registry, or a provider that merely has
+an API key, no longer implies readiness. Mock is never counted toward
+readiness under any configuration - see `resolveCandidates` (called with no
+`allowMockFallback`) in `src/router/router.ts`.
 
 Per-provider health is reported separately from configuration: `configured`
 means credentials are present; `healthy` means a live, cheap connectivity
 probe (a GET to the provider's models-list endpoint - no tokens spent, no
-completion call made) succeeded just now. The two are deliberately distinct
-fields, because an API key existing is not evidence that the provider is
-currently reachable. The overall ready/not_ready verdict is based on the
-*configured*-route bar, not live health, so `/ready` doesn't flap on a
-transient network blip while a provider is still genuinely configured and
-likely to recover before the next retry.
+completion call made) succeeded just now. The same probe's response also
+populates `availableModels`, which each task's `candidates[].modelStatus`
+is checked against - `classifyModelAvailability` in `src/router/router.ts`
+produces one of:
+
+- **`verified`** - the probe succeeded and the routed model ID was found. Usable.
+- **`missing`** - the probe succeeded and the routed model ID was NOT found -
+  a strong signal the model has been retired or renamed (this is exactly
+  what happened with `claude-3-5-haiku-20241022` before this was caught in
+  review - see `docs/production-limitations.md#model-lifecycle`). A
+  candidate in this state does not count toward that task's routability.
+- **`unverifiable`** - the probe failed, wasn't run, or the response
+  couldn't be parsed. Deliberately NOT treated as missing: a transient
+  network blip or a provider without a machine-readable model inventory
+  must never make `/ready` flap. A task with only `unverifiable` candidates
+  is still considered routable.
+
+The overall ready/not_ready verdict per task: routable if at least one
+candidate is `verified` or `unverifiable` (i.e., not disqualified);
+not-routable only when every configured candidate for that task is
+definitively `missing`, or none were configured at all. This is the
+deliberate, documented policy referenced above for when a live check is
+allowed to affect readiness - a confirmed-missing model, never bare probe
+latency.
 
 ## Privacy and logging
 

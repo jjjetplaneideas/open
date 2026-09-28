@@ -101,4 +101,51 @@ describe("OpenAICompatibleProvider", () => {
     expect(requestBody.response_format.type).toBe("json_schema");
     expect(requestBody.response_format.json_schema.name).toBe("my_schema");
   });
+
+  describe("healthCheck", () => {
+    it("reports unhealthy without a network call when no API key is configured", async () => {
+      const fetchSpy = vi.fn();
+      vi.stubGlobal("fetch", fetchSpy);
+      const provider = new OpenAICompatibleProvider({ id: "openai", apiKey: "", baseUrl: "https://api.openai.com/v1" });
+
+      const status = await provider.healthCheck();
+
+      expect(status).toEqual({ healthy: false, reason: "no API key configured" });
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("reports healthy and populates availableModels from a successful models-list probe", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(jsonResponse({ data: [{ id: "gpt-4o-mini" }, { id: "gpt-4o" }] })),
+      );
+      const provider = new OpenAICompatibleProvider({ id: "openai", apiKey: "sk-test", baseUrl: "https://api.openai.com/v1" });
+
+      const status = await provider.healthCheck();
+
+      expect(status.healthy).toBe(true);
+      expect(status.availableModels).toEqual(["gpt-4o-mini", "gpt-4o"]);
+    });
+
+    it("reports unhealthy with a reason on a non-2xx models-list response", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("unauthorized", { status: 401 })));
+      const provider = new OpenAICompatibleProvider({ id: "openai", apiKey: "sk-bad", baseUrl: "https://api.openai.com/v1" });
+
+      const status = await provider.healthCheck();
+
+      expect(status.healthy).toBe(false);
+      expect(status.reason).toMatch(/HTTP 401/);
+      expect(status.availableModels).toBeUndefined();
+    });
+
+    it("reports healthy but leaves availableModels undefined when the response body doesn't parse as a model list", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ unexpected: "shape" })));
+      const provider = new OpenAICompatibleProvider({ id: "openai", apiKey: "sk-test", baseUrl: "https://api.openai.com/v1" });
+
+      const status = await provider.healthCheck();
+
+      expect(status.healthy).toBe(true);
+      expect(status.availableModels).toBeUndefined();
+    });
+  });
 });

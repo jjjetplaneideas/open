@@ -194,9 +194,10 @@ describe("health endpoints", () => {
     }
   });
 
-  it("GET /ready reports ready once a task has at least one real, live-reachable provider", async () => {
+  it("GET /ready reports ready once a task has at least one real, live-reachable provider whose routed model is verified present", async () => {
     const originalFetch = global.fetch;
-    global.fetch = (async () => new Response("{}", { status: 200 })) as typeof fetch;
+    global.fetch = (async () =>
+      new Response(JSON.stringify({ data: [{ id: "gpt-4o-mini" }, { id: "gpt-4o" }] }), { status: 200 })) as typeof fetch;
     try {
       const { app } = createApp(testConfig({ OPENAI_API_KEY: "sk-test" }));
       const response = await request(app).get("/ready");
@@ -206,9 +207,50 @@ describe("health endpoints", () => {
       const taskStatus = response.body.tasks.find((t: { task: string }) => t.task === "talentsquad.extract_job");
       expect(taskStatus.routable).toBe(true);
       expect(taskStatus.configuredProviders).toEqual(["openai"]);
+      expect(taskStatus.candidates).toEqual([{ provider: "openai", model: "gpt-4o-mini", modelStatus: "verified" }]);
       const openaiStatus = response.body.providers.find((p: { provider: string }) => p.provider === "openai");
       expect(openaiStatus.configured).toBe(true);
       expect(openaiStatus.healthy).toBe(true);
+      expect(openaiStatus.availableModels).toEqual(["gpt-4o-mini", "gpt-4o"]);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it("GET /ready reports not_ready when a provider is configured and reachable but its routed model has been retired", async () => {
+    const originalFetch = global.fetch;
+    // openai is reachable and returns a real model list - just not the one this task is routed to.
+    global.fetch = (async () => new Response(JSON.stringify({ data: [{ id: "gpt-4o" }] }), { status: 200 })) as typeof fetch;
+    try {
+      const { app } = createApp(testConfig({ OPENAI_API_KEY: "sk-test" }));
+      const response = await request(app).get("/ready");
+
+      expect(response.status).toBe(503);
+      expect(response.body.status).toBe("not_ready");
+      const taskStatus = response.body.tasks.find((t: { task: string }) => t.task === "talentsquad.extract_job");
+      expect(taskStatus.routable).toBe(false);
+      expect(taskStatus.candidates).toEqual([{ provider: "openai", model: "gpt-4o-mini", modelStatus: "missing" }]);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it("GET /ready does not flap to not_ready merely because a live model-list probe timed out", async () => {
+    const originalFetch = global.fetch;
+    global.fetch = (async () => {
+      throw new Error("ECONNRESET");
+    }) as typeof fetch;
+    try {
+      const { app } = createApp(testConfig({ OPENAI_API_KEY: "sk-test" }));
+      const response = await request(app).get("/ready");
+
+      // Configured but unverifiable (probe failed) still counts as routable - only a
+      // confirmed-missing model should flip readiness off.
+      expect(response.status).toBe(200);
+      expect(response.body.status).toBe("ready");
+      const taskStatus = response.body.tasks.find((t: { task: string }) => t.task === "talentsquad.extract_job");
+      expect(taskStatus.routable).toBe(true);
+      expect(taskStatus.candidates).toEqual([{ provider: "openai", model: "gpt-4o-mini", modelStatus: "unverifiable" }]);
     } finally {
       global.fetch = originalFetch;
     }

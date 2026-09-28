@@ -57,28 +57,40 @@ OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-`GET /ready` reports, per task, whether it has at least one real configured
-route, and per provider, whether it's configured and whether a live
-connectivity probe just succeeded - see
-`docs/architecture.md#readiness-and-health-semantics`:
+`GET /ready` reports, per task, whether it has at least one real, routable
+candidate, and per provider, whether it's configured, whether a live
+connectivity probe just succeeded, and which model IDs that probe actually
+found - see `docs/architecture.md#readiness-and-health-semantics`:
 
 ```json
 {
   "status": "ready",
   "tasks": [
-    { "task": "talentsquad.extract_job", "routable": true, "configuredProviders": ["nvidia-nim"] },
-    { "task": "anglerj.explain_conditions", "routable": true, "configuredProviders": ["nvidia-nim"] }
+    {
+      "task": "talentsquad.extract_job",
+      "routable": true,
+      "configuredProviders": ["nvidia-nim"],
+      "candidates": [
+        { "provider": "nvidia-nim", "model": "meta/llama-3.1-70b-instruct", "modelStatus": "verified" }
+      ]
+    },
+    { "task": "anglerj.explain_conditions", "routable": true, "configuredProviders": ["nvidia-nim"], "candidates": [ "..." ] }
   ],
   "providers": [
-    { "provider": "nvidia-nim", "configured": true, "healthy": true },
+    { "provider": "nvidia-nim", "configured": true, "healthy": true, "availableModels": ["meta/llama-3.1-70b-instruct", "..."] },
     { "provider": "openai", "configured": false, "healthy": false, "reason": "no API key configured" },
     ...
   ]
 }
 ```
 
-Overall `status` is `ready` only when every task's `routable` is `true`.
-`mock` never appears in `configuredProviders`, even with
+Overall `status` is `ready` only when every task's `routable` is `true`. A
+candidate's `modelStatus` is `"verified"` (found in the provider's live
+model list), `"missing"` (the provider is reachable but no longer serves
+that model - very likely retired; disqualifies that candidate), or
+`"unverifiable"` (the probe failed or returned nothing parseable - does
+**not** disqualify the candidate, so a network blip never flaps readiness).
+`mock` never appears in `configuredProviders` or `candidates`, even with
 `ENABLE_MOCK_PROVIDER=true`.
 
 ## Running tests

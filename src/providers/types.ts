@@ -38,6 +38,18 @@ export interface GenerateResult {
 export interface HealthStatus {
   healthy: boolean;
   reason?: string;
+  /**
+   * Model IDs this provider's live models-list endpoint reported, when the
+   * probe succeeded and the response could be parsed. Undefined means
+   * "unknown" (not configured, the probe failed, or the response couldn't
+   * be parsed) - callers MUST treat undefined as "can't verify", never as
+   * "no models available". A model ID present in a task's route that is
+   * absent from a *populated* availableModels list is a strong signal that
+   * model has been retired or renamed - see
+   * src/router/router.ts#classifyModelAvailability and
+   * docs/production-limitations.md#model-lifecycle.
+   */
+  availableModels?: string[];
 }
 
 /**

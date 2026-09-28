@@ -16,8 +16,17 @@ export interface TaskRoute {
  * NVIDIA NIM is listed first for both tasks because it is our first
  * experimental/open-model provider (see docs/architecture.md#why-nvidia-nim-first),
  * useful for development and benchmarking. It is not assumed to be
- * production-grade infrastructure - see docs/production-limitations.md
- * before relying on it in production.
+ * production-grade infrastructure - NVIDIA's free API Catalog tier is
+ * itself marked deprecated by NVIDIA, separate from any individual model's
+ * lifecycle - see docs/production-limitations.md before relying on it in
+ * production.
+ *
+ * Anthropic's fallback model (`claude-haiku-4-5`) is the current Haiku
+ * generation as of this writing, chosen for this route's balanced
+ * cost/latency/quality target and a longer remaining lifecycle than an
+ * already-superseded prior-generation model. Model IDs age - when
+ * Anthropic ships a newer default-tier model, update this file's model
+ * string, not the provider adapter. See docs/production-limitations.md#model-lifecycle.
  *
  * The "mock" provider deliberately has NO entry anywhere in this table.
  * Mock is a test/evaluation fixture, never an inference provider of last
@@ -34,14 +43,14 @@ export const ROUTE_CONFIG: Record<string, TaskRoute> = {
     primary: { provider: "nvidia-nim", model: "meta/llama-3.1-70b-instruct" },
     fallback: [
       { provider: "openai", model: "gpt-4o-mini" },
-      { provider: "anthropic", model: "claude-3-5-haiku-20241022" },
+      { provider: "anthropic", model: "claude-haiku-4-5" },
     ],
   },
   "anglerj.explain_conditions": {
     primary: { provider: "nvidia-nim", model: "meta/llama-3.1-70b-instruct" },
     fallback: [
       { provider: "openai", model: "gpt-4o-mini" },
-      { provider: "anthropic", model: "claude-3-5-haiku-20241022" },
+      { provider: "anthropic", model: "claude-haiku-4-5" },
     ],
   },
 };

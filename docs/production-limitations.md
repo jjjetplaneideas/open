@@ -33,9 +33,25 @@ of what's intentionally deferred:
 NVIDIA NIM / API Catalog is excellent for development and benchmarking
 against open models, but:
 
+- **NVIDIA has marked its free API Catalog tier deprecated.** This is a
+  statement about the *free credential path/tier itself*, separate from
+  whether any individual model (e.g. `meta/llama-3.1-70b-instruct`, still
+  listed in NVIDIA's API Catalog as of this writing) remains callable
+  through it. Do not treat "the model still has an API definition" as
+  evidence the tier serving it is durable - those are two different
+  questions, and only the second one is about lifecycle risk. Before
+  depending on this route for anything beyond development/benchmarking,
+  confirm current status directly against NVIDIA's own API Catalog/NIM
+  documentation, and budget time to move to a paid tier or a self-hosted NIM
+  container.
+- This repo could not verify live NVIDIA reachability as part of this pass -
+  no `NVIDIA_NIM_API_KEY` was present in the environment this hardening work
+  ran in. `GET /ready` (see "Correct provider health check semantics" below)
+  will report NVIDIA's real-time status once real credentials are
+  configured; run it before trusting this route in any environment.
 - Free/development-tier endpoints have **no production SLA** and may have
   different rate limits, availability, or terms than a paid/self-hosted
-  deployment.
+  deployment, independent of the deprecation notice above.
 - Do not assume a model you benchmarked against the hosted API Catalog
   behaves identically to a self-hosted NIM container (different quantization,
   batching, or version pinning are all possible).
@@ -47,6 +63,22 @@ This is exactly the risk the design brief called out: "we should not assume
 free development endpoints can simply become our production infrastructure."
 The routing table (`src/router/route-config.ts`) makes it a one-line change
 to move a task off NIM once you've made that call per-task.
+
+## Model lifecycle
+
+Model IDs are not permanent - providers retire and rename them on their own
+schedule, independent of this codebase. `src/router/route-config.ts` had
+exactly this problem: it referenced `claude-3-5-haiku-20241022`, a retired
+Anthropic model ID, until this was caught in review and replaced with
+`claude-haiku-4-5` (the current Haiku-tier model as of this writing, chosen
+for a longer remaining lifecycle over migrating to another soon-superseded
+ID). GET /ready's live model-existence check (see "Correct provider health
+check semantics" below) is the automated guard against this recurring
+silently - but it only runs against providers you've configured credentials
+for, and only when this endpoint is actually polled. There is no scheduled
+job in V1 that periodically re-verifies every routed model ID against every
+provider independent of `/ready` traffic; add one if that matters for your
+deployment.
 
 ## Authentication
 
@@ -87,12 +119,21 @@ shape to validate against.
 
 `healthCheck()` performs one lightweight, unauthenticated-cost GET to the
 provider's models-list endpoint (see `docs/architecture.md#readiness-and-health-semantics`).
-This is real evidence of reachability, not a guess, but it is still only a
-model-listing call - it does not prove that a specific model is available,
-that generation/completion requests will succeed, or that the account has
-sufficient quota for real traffic. Treat `healthy: true` as "the provider is
-reachable and the key is valid," not as "the next inference call is
-guaranteed to succeed."
+This is real evidence of reachability, not a guess, and (since this
+hardening pass) the same response also populates `availableModels`, which
+`GET /ready` compares against each task's routed model IDs - see "Correct
+provider health check semantics" below and
+`src/router/router.ts#classifyModelAvailability`. This closes the specific
+gap that let a retired model ID (`claude-3-5-haiku-20241022`) sit unnoticed
+in the routing table.
+
+What it still does not prove: that a generation/completion request will
+succeed (rate limits, content-policy rejections, and transient 5xx errors
+are all possible on an otherwise-healthy, model-verified provider), or that
+the account has sufficient quota for real traffic. Treat `healthy: true` +
+a "verified" model status as "the provider is reachable, the key is valid,
+and this specific model currently exists," not as "the next inference call
+is guaranteed to succeed."
 
 ## Anglerj safety-state contract
 
