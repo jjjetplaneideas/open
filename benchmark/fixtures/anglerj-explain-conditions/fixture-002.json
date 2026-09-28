@@ -1,0 +1,14 @@
+{
+  "id": "fixture-002",
+  "input": {
+    "weather": { "tempF": 68, "windMph": 22, "windDirection": "NW", "skyCondition": "overcast" },
+    "tide": { "stage": "falling", "nextChangeIso": "2026-09-28T21:10:00.000Z" },
+    "solunar": { "majorPeriods": ["17:50-19:50"], "minorPeriods": ["23:30-00:30"] },
+    "pressure": { "inHg": 29.62, "trend": "falling" },
+    "regulations": { "species": "Snook", "slotLimitInches": null, "dailyBagLimit": null, "seasonOpen": false },
+    "score": { "value": 34, "label": "Poor" },
+    "safety": { "state": "LIGHTNING NEARBY", "note": "Storm cell detected 6 miles NW, moving toward the area." }
+  },
+  "forbiddenNumbers": ["10 miles", "50", "sunny"],
+  "expectedMentions": ["34", "Poor", "Snook", "closed", "LIGHTNING", "6 miles"]
+}

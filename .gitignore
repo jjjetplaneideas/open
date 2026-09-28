@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.local
+*.log
+benchmark/results/
+.DS_Store

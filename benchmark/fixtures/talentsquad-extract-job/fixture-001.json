@@ -1,0 +1,22 @@
+{
+  "id": "fixture-001",
+  "input": {
+    "sourceUrl": "https://careers.example-resort.com/jobs/4821",
+    "sourceTimestamp": "2026-09-20T14:00:00.000Z",
+    "sourceConfidence": "VERIFIED_RECENT",
+    "rawText": "Front Desk Agent - The Gulfview Resort & Spa\nDepartment: Guest Services\nSt. Pete Beach, FL\nFull-time, year-round position.\nPay: $17.00 - $19.50 per hour depending on experience.\n\nResponsibilities include checking guests in and out, handling reservations, and resolving guest concerns.\n\nRequirements:\n- 1+ years front desk or hospitality experience\n- Available to work weekends and holidays\n- Bilingual English/Spanish a plus"
+  },
+  "expected": {
+    "title": "Front Desk Agent",
+    "employer": "The Gulfview Resort & Spa",
+    "department": "Guest Services",
+    "employmentType": "full_time",
+    "compensationPresent": true,
+    "compensationMin": 17,
+    "compensationMax": 19.5,
+    "compensationPeriod": "hour",
+    "sourceConfidence": "VERIFIED_RECENT",
+    "minRequirementsCount": 2,
+    "mustNotInferFields": ["title", "employer", "department"]
+  }
+}

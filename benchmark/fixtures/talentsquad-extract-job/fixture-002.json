@@ -1,0 +1,18 @@
+{
+  "id": "fixture-002",
+  "input": {
+    "sourceUrl": "https://www.indeed.com/viewjob?jk=abc123def456",
+    "sourceTimestamp": null,
+    "sourceConfidence": "STALE",
+    "rawText": "Now hiring: Line Cooks at Salty Pelican Tiki Bar in Clearwater. Seasonal, fast-paced kitchen. Must be able to lift 40 lbs and work nights/weekends. Apply in person."
+  },
+  "expected": {
+    "title": "Line Cooks",
+    "employer": "Salty Pelican Tiki Bar",
+    "employmentType": "seasonal",
+    "compensationPresent": false,
+    "sourceConfidence": "STALE",
+    "mustBeNullFields": ["department"],
+    "mustNotInferFields": ["employer"]
+  }
+}
